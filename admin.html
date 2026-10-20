@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Administración · Madurez Lean · Zubex</title>
+<link rel="stylesheet" href="css/lean.css">
+<style>
+  .contenedor { max-width: 1120px; padding-bottom: 60px; }
+  .pestanas { display: flex; gap: 4px; border-bottom: 2px solid var(--linea); margin-bottom: 20px; }
+  .pestanas button {
+    border: 0; background: none; padding: 12px 18px; font-weight: 700; color: var(--gris);
+    cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+  }
+  .pestanas button[aria-selected="true"] { color: var(--azul); border-color: var(--azul); }
+  .barra-filtros { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+  .barra-filtros .campo { margin: 0; min-width: 200px; }
+  .conteo { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .conteo span { background: var(--blanco); border: 1px solid var(--linea); border-radius: 99px; padding: 4px 12px; font-size: 0.85rem; }
+  .conteo b { font-variant-numeric: tabular-nums; }
+
+  .tabla { width: 100%; border-collapse: collapse; background: var(--blanco); border: 1px solid var(--linea); border-radius: 10px; overflow: hidden; }
+  .tabla th { text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gris); padding: 10px 12px; border-bottom: 1px solid var(--linea); background: var(--papel); }
+  .tabla td { padding: 10px 12px; border-bottom: 1px solid var(--linea); vertical-align: middle; }
+  .tabla tr:last-child td { border-bottom: 0; }
+  .tabla .eq { font-weight: 700; }
+  .tabla .dep { font-size: 0.82rem; color: var(--gris); }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .inp-pct { display: flex; align-items: center; gap: 4px; }
+  .inp-pct input { width: 76px; padding: 8px; border: 1.5px solid var(--linea); border-radius: 6px; text-align: right; min-height: 40px; }
+  .inp-pct input:focus { outline: none; border-color: var(--azul); }
+  .inp-pct input.invalido { border-color: var(--naranja); background: var(--naranja-claro); }
+  .acciones { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .acciones .btn { min-height: 38px; padding: 6px 14px; font-size: 0.88rem; }
+  .cert-si { color: var(--azul); font-weight: 700; }
+  .cert-no { color: var(--naranja); font-weight: 700; }
+  .muted { color: var(--gris); font-size: 0.88rem; }
+  .estado-chip.sin { background: var(--papel); color: var(--gris); border: 1px solid var(--linea); }
+
+  .nuevo-equipo { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; background: var(--blanco); border: 1px solid var(--linea); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .nuevo-equipo .campo { margin: 0; flex: 1; min-width: 180px; }
+  .toggle { display: inline-flex; border: 1.5px solid var(--linea); border-radius: 8px; overflow: hidden; }
+  .toggle button { border: 0; background: var(--blanco); padding: 6px 14px; min-height: 36px; font-weight: 700; color: var(--gris); cursor: pointer; }
+  .toggle button + button { border-left: 1.5px solid var(--linea); }
+  .toggle button[aria-pressed="true"].act { background: var(--azul); color: var(--blanco); }
+  .toggle button[aria-pressed="true"].pau { background: var(--violeta); color: var(--blanco); }
+  .tabla td input.edit { padding: 6px 8px; border: 1.5px solid transparent; border-radius: 6px; width: 100%; background: transparent; }
+  .tabla td input.edit:hover { border-color: var(--linea); }
+  .tabla td input.edit:focus { outline: none; border-color: var(--azul); background: var(--blanco); }
+
+  .login { max-width: 380px; margin: 60px auto; }
+
+  @media (max-width: 760px) {
+    .tabla thead { display: none; }
+    .tabla, .tabla tbody, .tabla tr, .tabla td { display: block; width: 100%; }
+    .tabla tr { border-bottom: 1px solid var(--linea); padding: 8px 0; }
+    .tabla td { border: 0; padding: 6px 14px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    .tabla td[data-l]::before { content: attr(data-l); font-size: 0.78rem; color: var(--gris); font-weight: 600; }
+    .num { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<header class="barra">
+  <h1>Madurez Lean · Administración</h1>
+  <span class="estado-guardado" id="txtEstado"></span>
+</header>
+
+<main class="contenedor">
+
+  <!-- Acceso -->
+  <section class="panel login" id="panelLogin">
+    <h2>Acceso</h2>
+    <p class="sub">Solo para el equipo de Mejora Continua.</p>
+    <div class="campo">
+      <label for="inpPass">Contraseña</label>
+      <input id="inpPass" type="password" autocomplete="current-password">
+    </div>
+    <p class="aviso error" id="errPass" hidden>Contraseña incorrecta.</p>
+    <button class="btn" id="btnEntrar">Entrar</button>
+  </section>
+
+  <section id="panelAdmin" hidden>
+    <nav class="pestanas" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="auditorias">Auditorías del mes</button>
+      <button role="tab" aria-selected="false" data-tab="equipos">Equipos</button>
+    </nav>
+
+    <!-- Auditorías -->
+    <div id="tabAuditorias">
+      <div class="barra-filtros">
+        <div class="campo">
+          <label for="selMes">Mes</label>
+          <select id="selMes"></select>
+        </div>
+        <p class="muted" style="margin:0 0 6px">Captura los 3 valores en %, guarda y cierra. Una auditoría cerrada ya no se puede modificar.</p>
+      </div>
+      <div class="conteo" id="conteo"></div>
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Equipo</th><th>Estatus</th>
+            <th class="num">Desempeño<br>(17)</th><th class="num">Ahorros<br>(18)</th><th class="num">Examen<br>(19)</th>
+            <th class="num">Calificación</th><th>Certificación</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tbAuditorias"></tbody>
+      </table>
+    </div>
+
+    <!-- Equipos -->
+    <div id="tabEquipos" hidden>
+      <div class="nuevo-equipo">
+        <div class="campo"><label for="inpNuevoNombre">Nombre del equipo nuevo</label><input id="inpNuevoNombre" type="text"></div>
+        <div class="campo"><label for="inpNuevoDepto">Departamento</label><input id="inpNuevoDepto" type="text" list="listaDeptos"></div>
+        <datalist id="listaDeptos"></datalist>
+        <button class="btn" id="btnAgregar">Agregar equipo</button>
+      </div>
+      <p class="muted">Los equipos en pausa no aparecen en la captura ni cuentan en los resultados. Puedes corregir nombre y departamento escribiendo sobre ellos.</p>
+      <table class="tabla">
+        <thead><tr><th>Equipo</th><th>Departamento</th><th>Estado</th></tr></thead>
+        <tbody id="tbEquipos"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { db } from "./js/firebase-config.js";
+import {
+  collection, getDocs, doc, setDoc, updateDoc, query, where, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { calcular, puntosBajoMinimo, pct } from "./js/calculo.js";
+
+// Contraseña guardada como huella SHA-256 (no como texto).
+// Es un candado básico para evitar cambios accidentales, no una protección fuerte.
+const HUELLA = "5796064852e48b847478a3a173199907e6aa07c0fc1beb079ced308c4a736ffd";
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const slug = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const nombreMes = (m) => { const [a, mm] = m.split("-"); return `${MESES[Number(mm) - 1]} ${a}`.replace(/^./, (c) => c.toUpperCase()); };
+const CAMPOS = ["desempeno", "ahorro", "examen"];
+const ETIQUETA = { borrador: "En captura", pendiente: "Pendiente de resultados", cerrada: "Cerrada" };
+
+let equipos = [];
+let auditorias = {};   // equipoId -> auditoría del mes seleccionado
+
+function avisar(texto) {
+  $("txtEstado").textContent = texto;
+  clearTimeout(avisar.t);
+  avisar.t = setTimeout(() => { $("txtEstado").textContent = ""; }, 4000);
+}
+
+// ---------- Acceso ----------
+async function huella(texto) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function entrar() {
+  if (await huella($("inpPass").value) !== HUELLA) { $("errPass").hidden = false; return; }
+  sessionStorage.setItem("lean_admin", "1");
+  iniciar();
+}
+$("btnEntrar").addEventListener("click", entrar);
+$("inpPass").addEventListener("keydown", (e) => { if (e.key === "Enter") entrar(); });
+
+// ---------- Pestañas ----------
+document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-selected", x === b));
+  $("tabAuditorias").hidden = b.dataset.tab !== "auditorias";
+  $("tabEquipos").hidden = b.dataset.tab !== "equipos";
+}));
+
+// ---------- Inicio ----------
+async function iniciar() {
+  $("panelLogin").hidden = true;
+  $("panelAdmin").hidden = false;
+
+  // Últimos 12 meses
+  const hoy = new Date();
+  const opciones = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    opciones.push(`<option value="${m}">${nombreMes(m)}</option>`);
+  }
+  $("selMes").innerHTML = opciones.join("");
+  $("selMes").addEventListener("change", cargarAuditorias);
+
+  await cargarEquipos();
+  await cargarAuditorias();
+}
+
+async function cargarEquipos() {
+  const snap = await getDocs(collection(db, "lean_equipos"));
+  equipos = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => a.departamento.localeCompare(b.departamento, "es") || a.nombre.localeCompare(b.nombre, "es"));
+  pintarEquipos();
+}
+
+// ---------- Auditorías del mes ----------
+async function cargarAuditorias() {
+  const mes = $("selMes").value;
+  $("tbAuditorias").innerHTML = '<tr><td colspan="8" class="muted">Cargando…</td></tr>';
+  const snap = await getDocs(query(collection(db, "lean_auditorias"), where("mes", "==", mes)));
+  auditorias = {};
+  snap.docs.forEach((d) => { auditorias[d.data().equipoId] = d.data(); });
+  pintarAuditorias();
+}
+
+function pintarAuditorias() {
+  // Equipos activos + cualquier equipo pausado que sí tenga auditoría ese mes
+  const lista = equipos.filter((e) => e.estado === "activo" || auditorias[e.id]);
+  const cuenta = { sin: 0, borrador: 0, pendiente: 0, cerrada: 0 };
+  lista.forEach((e) => { cuenta[auditorias[e.id]?.estado || "sin"]++; });
+  $("conteo").innerHTML = `
+    <span>Sin auditar: <b>${cuenta.sin}</b></span>
+    <span>En captura: <b>${cuenta.borrador}</b></span>
+    <span>Pendientes de resultados: <b>${cuenta.pendiente}</b></span>
+    <span>Cerradas: <b>${cuenta.cerrada}</b></span>`;
+
+  $("tbAuditorias").innerHTML = lista.map((e) => {
+    const a = auditorias[e.id];
+    const estado = a?.estado || "sin";
+    const chip = `<span class="estado-chip ${estado}">${a ? ETIQUETA[estado] : "Sin auditar"}</span>`;
+    const cab = `<td><div class="eq">${esc(e.nombre)}</div><div class="dep">${esc(e.departamento)}${a ? ` · ${esc(a.auditor)}` : ""}${e.estado === "pausa" ? " · en pausa" : ""}</div></td>
+                 <td data-l="Estatus">${chip}</td>`;
+
+    if (!a) return `<tr>${cab}<td colspan="6" class="muted">Sin auditoría este mes</td></tr>`;
+
+    const editable = estado === "pendiente";
+    const celdas = CAMPOS.map((c, i) => {
+      const v = a.resultados?.[c];
+      const etq = ["Desempeño", "Ahorros", "Examen"][i];
+      if (!editable) return `<td class="num" data-l="${etq}">${pct(v ?? null)}</td>`;
+      return `<td class="num" data-l="${etq}"><span class="inp-pct">
+        <input type="number" inputmode="decimal" min="0" max="100" step="0.01" data-eq="${e.id}" data-c="${c}"
+          value="${v === null || v === undefined ? "" : +(v * 100).toFixed(2)}" aria-label="${etq} de ${esc(e.nombre)}">%</span></td>`;
+    }).join("");
+
+    let acciones = "";
+    if (estado === "borrador") acciones = '<span class="muted">El auditor no ha terminado</span>';
+    if (editable) acciones = `<button class="btn sec" data-guardar="${e.id}">Guardar</button><button class="btn" data-cerrar="${e.id}">Cerrar</button>`;
+
+    return `<tr id="fila-${e.id}">${cab}${celdas}
+      <td class="num" data-l="Calificación" id="cal-${e.id}"></td>
+      <td data-l="Certificación" id="cert-${e.id}"></td>
+      <td><div class="acciones">${acciones}</div></td></tr>`;
+  }).join("") || '<tr><td colspan="8" class="muted">No hay equipos activos.</td></tr>';
+
+  lista.forEach((e) => { if (auditorias[e.id]) vistaPrevia(e.id); });
+}
+
+// Lee los 3 valores de la fila (en fracción 0–1). Devuelve null en los vacíos y marca los inválidos.
+function leerFila(id) {
+  const res = { ...(auditorias[id].resultados || {}) };
+  let valido = true;
+  document.querySelectorAll(`input[data-eq="${id}"]`).forEach((inp) => {
+    const t = inp.value.trim();
+    const n = Number(t);
+    const ok = t === "" || (!isNaN(n) && n >= 0 && n <= 100);
+    inp.classList.toggle("invalido", !ok);
+    if (!ok) valido = false;
+    res[inp.dataset.c] = t === "" || !ok ? null : n / 100;
+  });
+  return { res, valido };
+}
+
+function vistaPrevia(id) {
+  const a = auditorias[id];
+  const { res } = a.estado === "pendiente" ? leerFila(id) : { res: a.resultados };
+  const calc = calcular(a.respuestas, res);
+  $("cal-" + id).innerHTML = calc.calificacion === null ? '<span class="muted">—</span>' : `<b>${pct(calc.calificacion)}</b>`;
+  $("cert-" + id).innerHTML = calc.certificado === null ? '<span class="muted">—</span>'
+    : calc.certificado ? '<span class="cert-si">Certificado</span>'
+    : `<span class="cert-no">No certificado</span><div class="muted">Punto ${puntosBajoMinimo(calc.puntos).join(", ")}</div>`;
+}
+
+$("tbAuditorias").addEventListener("input", (e) => { if (e.target.dataset.eq) vistaPrevia(e.target.dataset.eq); });
+
+$("tbAuditorias").addEventListener("click", async (e) => {
+  const id = e.target.dataset.guardar || e.target.dataset.cerrar;
+  if (!id) return;
+  const cerrar = !!e.target.dataset.cerrar;
+  const a = auditorias[id];
+  const { res, valido } = leerFila(id);
+  if (!valido) { alert("Los valores deben estar entre 0 y 100."); return; }
+
+  const calc = calcular(a.respuestas, res);
+  if (cerrar) {
+    if (CAMPOS.some((c) => res[c] === null)) { alert("Para cerrar, captura los 3 valores."); return; }
+    const msg = `¿Cerrar la auditoría de ${a.equipo}?\n\nCalificación: ${pct(calc.calificacion)}\n${calc.certificado ? "Certificado" : "No certificado"}\n\nYa no se podrá modificar.`;
+    if (!confirm(msg)) return;
+  }
+
+  e.target.disabled = true;
+  try {
+    const cambios = {
+      resultados: res,
+      puntos: calc.puntos,
+      bloques: calc.bloques,
+      calificacion: calc.calificacion,
+      certificado: calc.certificado,
+      actualizado: serverTimestamp()
+    };
+    if (cerrar) { cambios.estado = "cerrada"; cambios.fechaCierre = new Date().toISOString().slice(0, 10); }
+    await updateDoc(doc(db, "lean_auditorias", `${a.mes}_${id}`), cambios);
+    Object.assign(auditorias[id], cambios);
+    avisar(cerrar ? `${a.equipo}: auditoría cerrada` : `${a.equipo}: valores guardados`);
+    if (cerrar) pintarAuditorias();
+  } catch (err) {
+    console.error(err);
+    alert("No se pudo guardar. Revisa tu conexión.");
+  } finally {
+    e.target.disabled = false;
+  }
+});
+
+// ---------- Equipos ----------
+function pintarEquipos() {
+  $("listaDeptos").innerHTML = [...new Set(equipos.map((e) => e.departamento))].map((d) => `<option value="${esc(d)}">`).join("");
+  $("tbEquipos").innerHTML = equipos.map((e) => `
+    <tr>
+      <td data-l="Equipo"><input class="edit" data-id="${e.id}" data-campo="nombre" value="${esc(e.nombre)}" aria-label="Nombre"></td>
+      <td data-l="Departamento"><input class="edit" data-id="${e.id}" data-campo="departamento" value="${esc(e.departamento)}" list="listaDeptos" aria-label="Departamento"></td>
+      <td data-l="Estado"><div class="toggle">
+        <button class="act" data-id="${e.id}" data-estado="activo" aria-pressed="${e.estado === "activo"}">Activo</button>
+        <button class="pau" data-id="${e.id}" data-estado="pausa" aria-pressed="${e.estado === "pausa"}">En pausa</button>
+      </div></td>
+    </tr>`).join("");
+}
+
+async function guardarEquipo(id, cambios) {
+  const e = equipos.find((x) => x.id === id);
+  const nuevo = { nombre: e.nombre, departamento: e.departamento, estado: e.estado, ...cambios };
+  try {
+    await setDoc(doc(db, "lean_equipos", id), nuevo);
+    Object.assign(e, nuevo);
+    avisar(`${nuevo.nombre}: guardado`);
+    return true;
+  } catch (err) {
+    console.error(err);
+    alert("No se pudo guardar el equipo.");
+    return false;
+  }
+}
+
+$("tbEquipos").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-estado]");
+  if (!b) return;
+  if (await guardarEquipo(b.dataset.id, { estado: b.dataset.estado })) {
+    b.parentElement.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    pintarAuditorias();
+  }
+});
+
+$("tbEquipos").addEventListener("change", async (ev) => {
+  const inp = ev.target;
+  if (!inp.dataset.campo) return;
+  const v = inp.value.trim();
+  const e = equipos.find((x) => x.id === inp.dataset.id);
+  if (!v) { inp.value = e[inp.dataset.campo]; return; }
+  if (await guardarEquipo(inp.dataset.id, { [inp.dataset.campo]: v })) pintarAuditorias();
+});
+
+$("btnAgregar").addEventListener("click", async () => {
+  const nombre = $("inpNuevoNombre").value.trim();
+  const departamento = $("inpNuevoDepto").value.trim();
+  if (!nombre || !departamento) { alert("Escribe el nombre y el departamento."); return; }
+  const id = slug(nombre);
+  if (equipos.some((e) => e.id === id)) { alert("Ya existe un equipo con ese nombre."); return; }
+  try {
+    await setDoc(doc(db, "lean_equipos", id), { nombre, departamento, estado: "activo" });
+    $("inpNuevoNombre").value = $("inpNuevoDepto").value = "";
+    avisar(`${nombre}: agregado`);
+    await cargarEquipos();
+    pintarAuditorias();
+  } catch (err) {
+    console.error(err);
+    alert("No se pudo agregar el equipo.");
+  }
+});
+
+// ---------- Arranque ----------
+if (sessionStorage.getItem("lean_admin") === "1") iniciar();
+</script>
+</body>
+</html>
