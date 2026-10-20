@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Resultados · Madurez de Equipos Lean · Zubex</title>
+<link rel="stylesheet" href="css/lean.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  body { background: var(--papel); }
+  .enc {
+    background: var(--azul); color: #fff; padding: 16px 24px;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  }
+  .enc img { height: 54px; width: auto; }
+  .enc .logo-txt { font-weight: 700; font-size: 1.6rem; letter-spacing: 0.08em; padding: 6px 0; }
+  .enc h1 { margin: 0; font-size: 1.35rem; font-weight: 700; flex: 1; min-width: 220px; }
+  .enc h1 small { display: block; font-weight: 300; font-size: 0.95rem; opacity: 0.9; }
+  .enc select { padding: 10px 12px; border-radius: 8px; border: 0; min-height: 44px; font-weight: 600; color: var(--azul); }
+
+  .contenedor { max-width: 1200px; padding: 24px 16px 40px; }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .kpi { background: #fff; border: 1px solid var(--linea); border-radius: 10px; padding: 16px 18px; }
+  .kpi .t { font-size: 0.85rem; color: var(--gris); font-weight: 500; }
+  .kpi .v { font-size: 2.1rem; font-weight: 700; color: var(--azul); line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .kpi .d { font-size: 0.85rem; font-weight: 600; margin-top: 4px; }
+  .kpi .d .ant { color: var(--gris); font-weight: 400; }
+  .mejora { color: var(--verde); }
+  .deterioro { color: var(--naranja); }
+  .neutral { color: var(--azul); }
+
+  .seccion { background: #fff; border: 1px solid var(--linea); border-radius: 10px; padding: 18px 20px; margin-bottom: 24px; }
+  .seccion h2 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 700; }
+  .seccion .sub { margin: 0 0 14px; color: var(--gris); font-size: 0.9rem; }
+  .graficas { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .graficas .seccion { margin-bottom: 0; }
+  .lienzo { position: relative; height: 280px; }
+
+  .tbl-wrap { overflow-x: auto; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  .tbl th { text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #fff; background: var(--azul); padding: 10px; white-space: nowrap; }
+  .tbl td { padding: 9px 10px; border-bottom: 1px solid var(--linea); }
+  .tbl tbody tr:nth-child(even) td { background: #f1f5fd; }
+  .tbl tbody tr.clic { cursor: pointer; }
+  .tbl tbody tr.clic:hover td { background: var(--azul-claro); }
+  .tbl .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tbl .eq { font-weight: 600; }
+  .tbl .dep { font-size: 0.8rem; color: var(--gris); }
+  .pos { font-weight: 700; color: var(--azul); }
+  .chip { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+  .chip.si { background: var(--verde-claro); color: var(--verde); }
+  .chip.no { background: var(--naranja-claro); color: var(--naranja); }
+  .chip.pend { background: var(--violeta-claro); color: var(--azul); }
+
+  .nota { font-size: 0.85rem; color: var(--gris); line-height: 1.6; }
+  .nota strong { color: var(--tinta); }
+  .pie-gen { background: var(--papel); color: var(--gris); font-size: 0.8rem; padding: 14px 24px; border-top: 1px solid var(--linea); text-align: center; }
+
+  /* Detalle de equipo */
+  .detalle-cab { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; justify-content: space-between; margin-bottom: 16px; }
+  .detalle-cab h2 { font-size: 1.6rem; }
+  .detalle-bloques { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
+  .detalle-bloques div { border: 1px solid var(--linea); border-radius: 8px; padding: 10px 12px; }
+  .detalle-bloques span { display: block; font-size: 0.78rem; color: var(--gris); }
+  .detalle-bloques strong { font-size: 1.35rem; font-variant-numeric: tabular-nums; color: var(--azul); }
+  .detalle-bloques .final { background: var(--azul); border-color: var(--azul); }
+  .detalle-bloques .final span, .detalle-bloques .final strong { color: #fff; }
+  .oport h3 { font-size: 1rem; margin: 18px 0 8px; }
+  .oport ul { margin: 0; padding-left: 20px; }
+  .oport li { margin-bottom: 6px; }
+  .oport li b { color: var(--azul); }
+  .no-cumple { color: var(--naranja); font-weight: 600; }
+  .vacio { color: var(--gris); text-align: center; padding: 30px; }
+
+  @media (max-width: 860px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .graficas { grid-template-columns: 1fr; }
+    .detalle-bloques { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Impresión: solo la ficha del equipo, para pizarrón */
+  @media print {
+    @page { size: letter portrait; margin: 12mm; }
+    body { background: #fff; }
+    .no-imp { display: none !important; }
+    .enc { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .contenedor { padding: 0; max-width: none; }
+    .seccion { border: 0; padding: 0; }
+    .detalle-bloques .final, .tbl th, .chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tbl { font-size: 10pt; }
+    .tbl tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="enc">
+  <img src="img/logo-zubex.png" alt="Zubex" id="logo" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-txt',textContent:'ZUBEX'}))">
+  <h1 id="titulo">Madurez de Equipos Lean<small id="subtitulo">Cargando…</small></h1>
+  <select id="selMes" class="no-imp" aria-label="Mes"></select>
+</header>
+
+<main class="contenedor">
+
+  <!-- Vista general -->
+  <div id="vistaGeneral">
+    <div class="kpis" id="kpis"></div>
+
+    <section class="seccion">
+      <h2>Ranking de equipos</h2>
+      <p class="sub">Toca un equipo para ver su detalle, sus áreas de oportunidad e imprimir su ficha.</p>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>#</th><th>Equipo</th>
+            <th class="n">Educación y Cultura</th><th class="n">Solución de Problemas</th><th class="n">Mejora Continua</th><th class="n">Resultados</th>
+            <th class="n">Calificación</th><th class="n">vs mes ant.</th><th>Certificación</th>
+          </tr></thead>
+          <tbody id="tbRanking"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="graficas">
+      <section class="seccion">
+        <h2>Tendencia de la calificación promedio</h2>
+        <p class="sub">Últimos 12 meses, solo auditorías cerradas.</p>
+        <div class="lienzo"><canvas id="grTendencia" aria-label="Gráfica de tendencia de la calificación promedio"></canvas></div>
+      </section>
+      <section class="seccion">
+        <h2>Promedio por bloque</h2>
+        <p class="sub">Mes anterior contra mes seleccionado.</p>
+        <div class="lienzo"><canvas id="grBloques" aria-label="Gráfica de promedio por bloque"></canvas></div>
+      </section>
+    </div>
+    <div style="height:24px"></div>
+  </div>
+
+  <!-- Detalle de equipo -->
+  <section class="seccion" id="vistaDetalle" hidden></section>
+
+  <section class="seccion nota" id="nota"></section>
+</main>
+
+<footer class="pie-gen" id="pieGen"></footer>
+
+<script type="module">
+import { db } from "./js/firebase-config.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { PUNTOS, BLOQUES, CERTIFICACION } from "./js/catalogo.js";
+import { calcular, puntosBajoMinimo, pct } from "./js/calculo.js";
+
+const $ = (id) => document.getElementById(id);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const MESES_C = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const nombreMes = (m) => { const [a, mm] = m.split("-"); return `${MESES[Number(mm) - 1]} ${a}`.replace(/^./, (c) => c.toUpperCase()); };
+const corto = (m) => { const [a, mm] = m.split("-"); return `${MESES_C[Number(mm) - 1]} ${a.slice(2)}`; };
+const mesAnterior = (m) => { const [a, mm] = m.split("-").map(Number); const d = new Date(a, mm - 2, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const promedio = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+const ahora = new Date();
+const GENERADO = `${String(ahora.getDate()).padStart(2, "0")}/${String(ahora.getMonth() + 1).padStart(2, "0")}/${ahora.getFullYear()} ${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}`;
+
+// Colores del manual (sin colores por defecto de la librería)
+const AZUL = "#0D18A8", ACENTO = "#227EF6", GRIS = "#94a3b8";
+Chart.defaults.font.family = "'Poppins', 'Segoe UI', sans-serif";
+Chart.defaults.color = "#5D6178";
+
+let equipos = {};       // id -> equipo
+let todas = [];         // auditorías de equipos activos
+let grTend = null, grBloq = null;
+
+async function cargar() {
+  const [snapE, snapA] = await Promise.all([
+    getDocs(collection(app_db(), "lean_equipos")),
+    getDocs(collection(app_db(), "lean_auditorias"))
+  ]);
+  snapE.docs.forEach((d) => { equipos[d.id] = { id: d.id, ...d.data() }; });
+  // Se excluyen los equipos en pausa
+  todas = snapA.docs.map((d) => d.data()).filter((a) => equipos[a.equipoId]?.estado === "activo");
+
+  const meses = [...new Set(todas.map((a) => a.mes))].sort().reverse();
+  const actual = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}`;
+  if (!meses.includes(actual)) meses.unshift(actual);
+  $("selMes").innerHTML = meses.map((m) => `<option value="${m}">${nombreMes(m)}</option>`).join("");
+
+  // Por defecto, el mes más reciente que tenga auditorías cerradas
+  const conCerradas = meses.find((m) => todas.some((a) => a.mes === m && a.estado === "cerrada"));
+  $("selMes").value = conCerradas || meses[0];
+  $("selMes").addEventListener("change", () => { cerrarDetalle(); pintar(); });
+  pintar();
+}
+function app_db() { return db; }
+
+const cerradasDe = (mes) => todas.filter((a) => a.mes === mes && a.estado === "cerrada");
+const totalN = (a) => Object.values(a.respuestas || {}).filter((r) => r.v === "n").length;
+
+function delta(act, ant, sentido, formato) {
+  if (act === null || ant === null) return `<div class="d"><span class="ant">Sin dato del mes anterior</span></div>`;
+  const dif = act - ant;
+  const clase = dif === 0 ? "neutral" : (dif > 0) === (sentido === "sube") ? "mejora" : "deterioro";
+  const flecha = dif > 0 ? "▲" : dif < 0 ? "▼" : "=";
+  return `<div class="d"><span class="ant">${formato(ant)} →</span> ${formato(act)} <span class="${clase}">${flecha} ${formato(Math.abs(dif), true)}</span></div>`;
+}
+
+function pintar() {
+  const mes = $("selMes").value;
+  const ant = mesAnterior(mes);
+  const act = cerradasDe(mes);
+  const prev = cerradasDe(ant);
+  const pendientes = todas.filter((a) => a.mes === mes && a.estado !== "cerrada").length;
+  const activos = Object.values(equipos).filter((e) => e.estado === "activo").length;
+
+  $("subtitulo").textContent = `${nombreMes(mes)} · ${act.length} auditorías cerradas`;
+  $("pieGen").textContent = `Generado: ${GENERADO} · Mejora Continua · Zubex Industrial`;
+
+  // ---------- KPIs ----------
+  const calAct = promedio(act.map((a) => a.calificacion));
+  const calAnt = promedio(prev.map((a) => a.calificacion));
+  const certAct = act.length ? act.filter((a) => a.certificado).length : null;
+  const certAnt = prev.length ? prev.filter((a) => a.certificado).length : null;
+  const opAct = act.length ? act.reduce((s, a) => s + totalN(a), 0) : null;
+  const opAnt = prev.length ? prev.reduce((s, a) => s + totalN(a), 0) : null;
+  const fPct = (v, abs) => abs ? (v * 100).toFixed(1) + " pts" : pct(v);
+  const fNum = (v) => String(v);
+
+  $("kpis").innerHTML = `
+    <div class="kpi"><div class="t">Calificación promedio</div><div class="v">${pct(calAct)}</div>${delta(calAct, calAnt, "sube", fPct)}</div>
+    <div class="kpi"><div class="t">Equipos certificados</div><div class="v">${certAct ?? "—"}<span style="font-size:1rem;font-weight:400;color:var(--gris)"> de ${act.length}</span></div>${delta(certAct, certAnt, "sube", fNum)}</div>
+    <div class="kpi"><div class="t">Áreas de oportunidad</div><div class="v">${opAct ?? "—"}</div>${delta(opAct, opAnt, "baja", fNum)}</div>
+    <div class="kpi"><div class="t">Avance del mes</div><div class="v">${act.length}<span style="font-size:1rem;font-weight:400;color:var(--gris)"> de ${activos}</span></div><div class="d"><span class="neutral">${pendientes} en captura o pendientes de resultados</span></div></div>`;
+
+  // ---------- Ranking ----------
+  const califAnt = {};
+  prev.forEach((a) => { califAnt[a.equipoId] = a.calificacion; });
+  const orden = [...act].sort((a, b) => b.calificacion - a.calificacion);
+  $("tbRanking").innerHTML = orden.length ? orden.map((a, i) => {
+    const d = califAnt[a.equipoId] !== undefined ? a.calificacion - califAnt[a.equipoId] : null;
+    const dTxt = d === null ? '<span style="color:var(--gris)">—</span>'
+      : `<span class="${d > 0 ? "mejora" : d < 0 ? "deterioro" : "neutral"}">${d > 0 ? "▲" : d < 0 ? "▼" : "="} ${(Math.abs(d) * 100).toFixed(1)}</span>`;
+    return `<tr class="clic" data-eq="${a.equipoId}" tabindex="0">
+      <td class="pos">${i + 1}</td>
+      <td><div class="eq">${esc(a.equipo)}</div><div class="dep">${esc(a.departamento)}</div></td>
+      ${BLOQUES.map((b) => `<td class="n">${pct(a.bloques?.[b.id])}</td>`).join("")}
+      <td class="n"><b>${pct(a.calificacion)}</b></td>
+      <td class="n">${dTxt}</td>
+      <td>${a.certificado ? '<span class="chip si">Certificado</span>' : '<span class="chip no">No certificado</span>'}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="9" class="vacio">No hay auditorías cerradas en ${nombreMes(mes)}.</td></tr>`;
+
+  // ---------- Gráfica de tendencia (línea) ----------
+  const meses12 = [];
+  for (let m = mes, i = 0; i < 12; i++, m = mesAnterior(m)) meses12.unshift(m);
+  const serie = meses12.map((m) => { const p = promedio(cerradasDe(m).map((a) => a.calificacion)); return p === null ? null : +(p * 100).toFixed(1); });
+  grTend?.destroy();
+  grTend = new Chart($("grTendencia"), {
+    type: "line",
+    data: { labels: meses12.map(corto), datasets: [{ label: "Calificación promedio (%)", data: serie, borderColor: AZUL, backgroundColor: AZUL, pointRadius: 4, spanGaps: true, tension: 0 }] },
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } }, plugins: { legend: { display: true } } }
+  });
+
+  // ---------- Gráfica por bloque (barras agrupadas) ----------
+  const promBloque = (lista, id) => { const p = promedio(lista.map((a) => a.bloques?.[id]).filter((v) => v !== null && v !== undefined)); return p === null ? null : +(p * 100).toFixed(1); };
+  grBloq?.destroy();
+  grBloq = new Chart($("grBloques"), {
+    type: "bar",
+    data: {
+      labels: BLOQUES.map((b) => b.nombre),
+      datasets: [
+        { label: nombreMes(ant), data: BLOQUES.map((b) => promBloque(prev, b.id)), backgroundColor: GRIS },
+        { label: nombreMes(mes), data: BLOQUES.map((b) => promBloque(act, b.id)), backgroundColor: ACENTO }
+      ]
+    },
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } } }
+  });
+
+  // ---------- Nota metodológica ----------
+  $("nota").innerHTML = `
+    <strong>Nota metodológica.</strong> Fuente: auditorías mensuales de Madurez Lean capturadas en la plataforma (Firebase, proyecto eq-lean).
+    Solo se consideran auditorías <strong>cerradas</strong>, es decir, con desempeño contra metas, ahorros y examen capturados.
+    Se excluyen los equipos en pausa. La calificación de cada punto es la suma de los criterios con "Sí"; cada bloque promedia sus puntos y la calificación final promedia los 4 bloques.
+    Un equipo se certifica si cumple el mínimo de todos los puntos que lo tienen:
+    ${Object.entries(CERTIFICACION).map(([n, [, m]]) => `punto ${n} ≥ ${m * 100} %`).join(", ")}.
+    La variación de la calificación por equipo se expresa en puntos porcentuales contra el mes anterior.`;
+}
+
+// ---------- Detalle de equipo ----------
+$("tbRanking").addEventListener("click", (e) => { const tr = e.target.closest("[data-eq]"); if (tr) abrirDetalle(tr.dataset.eq); });
+$("tbRanking").addEventListener("keydown", (e) => { const tr = e.target.closest("[data-eq]"); if (tr && e.key === "Enter") abrirDetalle(tr.dataset.eq); });
+
+function abrirDetalle(id) {
+  const mes = $("selMes").value;
+  const a = todas.find((x) => x.mes === mes && x.equipoId === id);
+  if (!a) return;
+  const calc = calcular(a.respuestas, a.resultados);
+  const bajo = puntosBajoMinimo(calc.puntos);
+
+  const oportunidades = PUNTOS.filter((p) => p.criterios).map((p) => {
+    const items = p.criterios.filter((c) => a.respuestas?.[c.id]?.v === "n");
+    if (!items.length) return "";
+    return `<li><b>${p.n}. ${esc(p.titulo)}</b><ul>${items.map((c) =>
+      `<li>${esc(a.respuestas[c.id].t || "Sin descripción")} <span style="color:var(--gris)">(${c.id})</span></li>`).join("")}</ul></li>`;
+  }).join("");
+
+  $("vistaGeneral").hidden = true;
+  $("vistaDetalle").hidden = false;
+  $("subtitulo").textContent = `${a.equipo} · ${nombreMes(mes)}`;
+  $("vistaDetalle").innerHTML = `
+    <div class="detalle-cab">
+      <div>
+        <h2>${esc(a.equipo)}</h2>
+        <p class="sub" style="margin:0">${esc(a.departamento)} · ${nombreMes(mes)} · Auditor: ${esc(a.auditor)} · Fecha: ${esc(a.fecha)}</p>
+      </div>
+      <div class="no-imp" style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn sec" id="btnVolver">Volver</button>
+        <button class="btn" id="btnImprimir">Imprimir para pizarrón</button>
+      </div>
+    </div>
+    <p>${calc.certificado ? '<span class="chip si">Certificado</span>'
+      : `<span class="chip no">No certificado</span> <span class="no-cumple">No alcanza el mínimo en: punto ${bajo.join(", ")}</span>`}</p>
+
+    <div class="detalle-bloques">
+      ${BLOQUES.map((b) => `<div><span>${b.nombre}</span><strong>${pct(calc.bloques[b.id])}</strong></div>`).join("")}
+      <div class="final"><span>Calificación final</span><strong>${pct(calc.calificacion)}</strong></div>
+    </div>
+
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>#</th><th>Punto</th><th class="n">Calificación</th><th class="n">Mínimo</th></tr></thead>
+        <tbody>${PUNTOS.map((p) => {
+          const min = CERTIFICACION[p.n];
+          const falla = bajo.includes(p.n);
+          return `<tr><td class="pos">${p.n}</td><td>${esc(p.titulo)}</td>
+            <td class="n ${falla ? "no-cumple" : ""}">${pct(calc.puntos[p.n])}</td>
+            <td class="n">${min ? min[1] * 100 + " %" : "—"}</td></tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>
+
+    <div class="oport">
+      <h3>Áreas de oportunidad (${totalN(a)})</h3>
+      ${oportunidades ? `<ul>${oportunidades}</ul>` : '<p class="sub">Sin áreas de oportunidad este mes.</p>'}
+    </div>`;
+  $("btnVolver").onclick = cerrarDetalle;
+  $("btnImprimir").onclick = () => window.print();
+  window.scrollTo({ top: 0 });
+}
+
+function cerrarDetalle() {
+  $("vistaDetalle").hidden = true;
+  $("vistaGeneral").hidden = false;
+  if ($("selMes").value) $("subtitulo").textContent = `${nombreMes($("selMes").value)} · ${cerradasDe($("selMes").value).length} auditorías cerradas`;
+}
+
+cargar().catch((err) => {
+  console.error(err);
+  $("subtitulo").textContent = "No se pudo conectar con la base de datos";
+});
+</script>
+</body>
+</html>
