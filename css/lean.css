@@ -1,22 +1,25 @@
 /* ============================================================
    Madurez Lean — estilos compartidos (captura, admin, resultados)
-   Identidad Zubex: azul #0D18A8, naranja #FF4E00, violeta #9631F7
+   Según el Manual de Estandarización de Reportes IA (skill zubex-reportes-ia)
    ============================================================ */
-@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
 
 :root {
   --azul: #0D18A8;
-  --azul-claro: #E7E9FB;
-  --naranja: #FF4E00;
-  --naranja-claro: #FFEDE5;
-  --violeta: #9631F7;
-  --violeta-claro: #F2E8FE;
+  --azul-claro: #dbeafe;
+  --acento: #227EF6;
+  --verde: #166534;
+  --verde-claro: #dcfce7;
+  --naranja: #991b1b;      /* rojo semántico: "No" / área de oportunidad */
+  --naranja-claro: #fee2e2;
+  --violeta: #227EF6;      /* azul de acento: pendientes */
+  --violeta-claro: #dbeafe;
   --tinta: #14172B;
   --gris: #5D6178;
   --linea: #D8DBE6;
-  --papel: #F4F5F9;
+  --papel: #f8fafc;
   --blanco: #FFFFFF;
-  --fuente: "Lab Grotesque", "Archivo", "Segoe UI", Arial, sans-serif;
+  --fuente: "Lab Grotesque", "Poppins", "Segoe UI", -apple-system, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -43,7 +46,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   gap: 16px;
   flex-wrap: wrap;
 }
-.barra h1 { margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; }
+.barra h1 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
 .barra .mes { font-weight: 500; opacity: 0.85; }
 .barra .estado-guardado { margin-left: auto; font-size: 0.85rem; opacity: 0.85; }
 
@@ -56,7 +59,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-radius: 10px;
   padding: 24px;
 }
-.panel h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+.panel h2 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
 .panel p.sub { margin: 0 0 20px; color: var(--gris); }
 .campo { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .campo label { font-weight: 600; font-size: 0.95rem; }
@@ -105,7 +108,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   margin-bottom: 8px;
 }
 .mapa-equipo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-.mapa-equipo strong { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
+.mapa-equipo strong { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; }
 .mapa-equipo span { color: var(--gris); font-size: 0.9rem; }
 .celdas { display: grid; grid-template-columns: repeat(19, 1fr); gap: 4px; }
 .celda {
@@ -138,7 +141,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Bloques y puntos ---------- */
 .bloque-titulo {
   font-size: 1.6rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.02em;
   margin: 36px 0 12px;
   color: var(--azul);
@@ -157,7 +160,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   padding: 14px 18px;
   border-bottom: 1px solid var(--linea);
 }
-.punto-num { font-size: 1.6rem; font-weight: 800; color: var(--azul); line-height: 1; min-width: 2ch; }
+.punto-num { font-size: 1.6rem; font-weight: 700; color: var(--azul); line-height: 1; min-width: 2ch; }
 .punto-cab h3 { margin: 0; font-size: 1.05rem; font-weight: 700; flex: 1; }
 .punto-cal { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gris); }
 .punto-min { font-size: 0.8rem; color: var(--gris); font-weight: 500; }
@@ -187,7 +190,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   width: 100%; min-height: 56px; resize: vertical; padding: 10px 12px;
   border: 1.5px solid var(--linea); border-radius: 8px; background: var(--papel);
 }
-.criterio[data-v="n"] .comentario textarea { background: var(--naranja-claro); border-color: #FFC8B0; }
+.criterio[data-v="n"] .comentario textarea { background: var(--naranja-claro); border-color: #fca5a5; }
 .comentario textarea:focus { outline: none; border-color: var(--azul); background: var(--blanco); }
 
 .punto.pendiente-valor .punto-cab { border-bottom: 0; }
@@ -210,7 +213,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .resumen-bloques { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 20px 0; }
 .res-bloque { border: 1px solid var(--linea); border-radius: 8px; padding: 12px; }
 .res-bloque span { display: block; font-size: 0.8rem; color: var(--gris); }
-.res-bloque strong { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.res-bloque strong { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .res-bloque.pend strong { color: var(--violeta); font-size: 1rem; }
 .estado-chip { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; }
 .estado-chip.borrador { background: var(--azul-claro); color: var(--azul); }
