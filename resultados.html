@@ -91,25 +91,82 @@
     .tbl { font-size: 10pt; }
     .tbl tr { break-inside: avoid; }
   }
+
+  /* Pestañas */
+  .nav { background: #fff; border-bottom: 1px solid var(--linea); padding: 0 16px; }
+  .nav-in { max-width: 1200px; margin: 0 auto; display: flex; gap: 4px; overflow-x: auto; }
+  .nav a { padding: 14px 18px; font-weight: 600; color: var(--gris); text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+  .nav a[aria-current="page"] { color: var(--azul); border-color: var(--azul); }
+
+  .filtros { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+  .filtros .campo { margin: 0; min-width: 200px; }
+
+  /* Evaluación */
+  .ev-punto { border: 1px solid var(--linea); border-radius: 10px; margin-bottom: 12px; overflow: hidden; break-inside: avoid; }
+  .ev-punto-cab { display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: var(--papel); border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
+  .ev-punto-cab .num { font-size: 1.3rem; font-weight: 700; color: var(--azul); min-width: 2ch; }
+  .ev-punto-cab h4 { margin: 0; flex: 1; font-size: 1rem; font-weight: 600; min-width: 180px; }
+  .ev-punto-cab .cal { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ev-crit { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--linea); }
+  .ev-crit:last-child { border-bottom: 0; }
+  .ev-crit .txt { font-size: 0.92rem; }
+  .ev-crit .com { font-size: 0.88rem; margin-top: 4px; padding-left: 10px; border-left: 3px solid var(--linea); }
+  .ev-crit.y .com { border-color: var(--verde); color: var(--tinta); }
+  .ev-crit.n .com { border-color: var(--naranja); color: var(--naranja); }
+  .ev-crit .com b { font-weight: 600; }
+  .bloque-h { font-size: 1.2rem; font-weight: 700; color: var(--azul); margin: 22px 0 10px; }
+  .solo-no .ev-crit.y { display: none; }
+  .solo-no .ev-punto.todo-si { display: none; }
+
+  /* Resumen */
+  .tbl-res td, .tbl-res th { text-align: center; }
+  .tbl-res td:first-child, .tbl-res th:first-child { text-align: left; position: sticky; left: 0; z-index: 1; }
+  .tbl-res td:first-child { background: #fff; }
+  .tbl-res tbody tr:nth-child(even) td:first-child { background: #f1f5fd; }
+  .tbl-res td.ok { background: var(--verde-claro) !important; color: var(--verde); font-weight: 700; }
+  .tbl-res td.bajo { background: var(--naranja-claro) !important; color: var(--naranja); font-weight: 600; }
+  .tbl-res .ok, .tbl-res .bajo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tbl-res tfoot tr.meta td { background: #fff; color: var(--gris); font-weight: 500; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+  .tbl-res .prom { font-weight: 700; background: var(--azul-claro) !important; }
+  .tbl-res tfoot td { font-weight: 700; background: var(--azul-claro); border-top: 2px solid var(--azul); }
+  .tbl-res .hist { font-style: italic; }
+  .leyenda { font-size: 0.85rem; color: var(--gris); margin-top: 10px; }
+
+  @media (max-width: 640px) { .ev-crit { grid-template-columns: 1fr; gap: 6px; } }
+  @media print {
+    .nav { display: none; }
+    .ev-punto-cab, .chip, .tbl-res .prom, .tbl-res tfoot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body>
 
 <header class="enc">
   <img src="img/logo-zubex.png" alt="Zubex" id="logo" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'logo-txt',textContent:'ZUBEX'}))">
-  <h1 id="titulo">Madurez de Equipos Lean<small id="subtitulo">Cargando…</small></h1>
-  <select id="selMes" class="no-imp" aria-label="Mes"></select>
+  <h1>Madurez de Equipos Lean<small id="subtitulo">Cargando…</small></h1>
 </header>
+
+<nav class="nav no-imp">
+  <div class="nav-in">
+    <a href="#general" data-vista="general">General</a>
+    <a href="#evaluacion" data-vista="evaluacion">Evaluación</a>
+    <a href="#resumen" data-vista="resumen">Resumen</a>
+  </div>
+</nav>
 
 <main class="contenedor">
 
-  <!-- Vista general -->
-  <div id="vistaGeneral">
+  <!-- ===================== GENERAL ===================== -->
+  <div id="vista-general" hidden>
+    <div class="filtros no-imp">
+      <div class="campo"><label for="selMes">Mes</label><select id="selMes"></select></div>
+    </div>
     <div class="kpis" id="kpis"></div>
 
     <section class="seccion">
       <h2>Ranking de equipos</h2>
-      <p class="sub">Toca un equipo para ver su detalle, sus áreas de oportunidad e imprimir su ficha.</p>
+      <p class="sub">Toca un equipo para ver su evaluación completa.</p>
       <div class="tbl-wrap">
         <table class="tbl">
           <thead><tr>
@@ -137,8 +194,30 @@
     <div style="height:24px"></div>
   </div>
 
-  <!-- Detalle de equipo -->
-  <section class="seccion" id="vistaDetalle" hidden></section>
+  <!-- ===================== EVALUACIÓN ===================== -->
+  <div id="vista-evaluacion" hidden>
+    <div class="filtros no-imp">
+      <div class="campo"><label for="selEqEv">Equipo</label><select id="selEqEv"></select></div>
+      <div class="campo"><label for="selMesEv">Mes</label><select id="selMesEv"></select></div>
+      <label class="check" style="margin:0 0 12px"><input type="checkbox" id="chkSoloNo"><span>Mostrar solo lo que no cumple</span></label>
+      <button class="btn" id="btnImpEv" style="margin-bottom:2px">Imprimir</button>
+    </div>
+    <section class="seccion" id="evContenido"><p class="vacio">Selecciona un equipo.</p></section>
+  </div>
+
+  <!-- ===================== RESUMEN ===================== -->
+  <div id="vista-resumen" hidden>
+    <div class="filtros no-imp">
+      <div class="campo"><label for="selAnio">Año</label><select id="selAnio"></select></div>
+      <button class="btn" id="btnImpRes" style="margin-bottom:2px">Imprimir</button>
+    </div>
+    <section class="seccion">
+      <h2 id="resTitulo">Historial de calificaciones</h2>
+      <p class="sub">Calificación final de cada equipo por mes contra la meta de su departamento.</p>
+      <div class="tbl-wrap"><table class="tbl tbl-res" id="tbResumen"></table></div>
+      <p class="leyenda"><span class="sw" style="background:var(--verde-claro);border:1px solid var(--verde)"></span>Alcanzó o superó la meta del mes · <span class="sw" style="background:var(--naranja-claro);border:1px solid var(--naranja)"></span>Debajo de la meta · Valores en <i>cursiva</i>: historial del Excel (redondeados) · —: sin evaluación. Compras e Ingeniería se comparan contra su propia meta en los meses donde es diferente a la de Planta.</p>
+    </section>
+  </div>
 
   <section class="seccion nota" id="nota"></section>
 </main>
@@ -160,7 +239,9 @@ const corto = (m) => { const [a, mm] = m.split("-"); return `${MESES_C[Number(mm
 const mesAnterior = (m) => { const [a, mm] = m.split("-").map(Number); const d = new Date(a, mm - 2, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const promedio = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
 const ahora = new Date();
+const MES_HOY = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}`;
 const GENERADO = `${String(ahora.getDate()).padStart(2, "0")}/${String(ahora.getMonth() + 1).padStart(2, "0")}/${ahora.getFullYear()} ${String(ahora.getHours()).padStart(2, "0")}:${String(ahora.getMinutes()).padStart(2, "0")}`;
+const ETIQUETA = { borrador: "En captura", pendiente: "Pendiente de resultados", cerrada: "Cerrada" };
 
 // Colores del manual (sin colores por defecto de la librería)
 const AZUL = "#0D18A8", ACENTO = "#227EF6", GRIS = "#94a3b8";
@@ -168,33 +249,72 @@ Chart.defaults.font.family = "'Poppins', 'Segoe UI', sans-serif";
 Chart.defaults.color = "#5D6178";
 
 let equipos = {};       // id -> equipo
-let todas = [];         // auditorías de equipos activos
-let grTend = null, grBloq = null;
+let todas = [];         // auditorías de equipos activos (todos los estados)
+let historial = [];     // calificaciones importadas del Excel
+let metas = {};         // año -> { planta: [12], excepciones: { depto: [12] } }
 
-async function cargar() {
-  const [snapE, snapA] = await Promise.all([
-    getDocs(collection(app_db(), "lean_equipos")),
-    getDocs(collection(app_db(), "lean_auditorias"))
-  ]);
-  snapE.docs.forEach((d) => { equipos[d.id] = { id: d.id, ...d.data() }; });
-  // Se excluyen los equipos en pausa
-  todas = snapA.docs.map((d) => d.data()).filter((a) => equipos[a.equipoId]?.estado === "activo");
-
-  const meses = [...new Set(todas.map((a) => a.mes))].sort().reverse();
-  const actual = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, "0")}`;
-  if (!meses.includes(actual)) meses.unshift(actual);
-  $("selMes").innerHTML = meses.map((m) => `<option value="${m}">${nombreMes(m)}</option>`).join("");
-
-  // Por defecto, el mes más reciente que tenga auditorías cerradas
-  const conCerradas = meses.find((m) => todas.some((a) => a.mes === m && a.estado === "cerrada"));
-  $("selMes").value = conCerradas || meses[0];
-  $("selMes").addEventListener("change", () => { cerrarDetalle(); pintar(); });
-  pintar();
+// Meta del mes para un departamento (fracción 0–1) o null si no hay meta
+function metaDe(depto, mes) {
+  const [anio, mm] = mes.split("-");
+  const m = metas[anio];
+  if (!m) return null;
+  const i = Number(mm) - 1;
+  const exc = m.excepciones?.[depto]?.[i];
+  return exc !== null && exc !== undefined ? exc : (m.planta?.[i] ?? null);
 }
-function app_db() { return db; }
+let grTend = null, grBloq = null;
 
 const cerradasDe = (mes) => todas.filter((a) => a.mes === mes && a.estado === "cerrada");
 const totalN = (a) => Object.values(a.respuestas || {}).filter((r) => r.v === "n").length;
+const activos = () => Object.values(equipos).filter((e) => e.estado === "activo")
+  .sort((a, b) => a.departamento.localeCompare(b.departamento, "es") || a.nombre.localeCompare(b.nombre, "es"));
+
+// ===================== Carga =====================
+async function cargar() {
+  const [snapE, snapA] = await Promise.all([
+    getDocs(collection(db, "lean_equipos")),
+    getDocs(collection(db, "lean_auditorias"))
+  ]);
+  snapE.docs.forEach((d) => { equipos[d.id] = { id: d.id, ...d.data() }; });
+  todas = snapA.docs.map((d) => d.data()).filter((a) => equipos[a.equipoId]?.estado === "activo");
+  try {
+    const snapH = await getDocs(collection(db, "lean_historial"));
+    historial = snapH.docs.map((d) => d.data());
+  } catch { historial = []; }
+  try {
+    const snapM = await getDocs(collection(db, "lean_metas"));
+    snapM.docs.forEach((d) => { metas[d.id] = d.data(); });
+  } catch { metas = {}; }
+
+  prepararGeneral();
+  prepararEvaluacion();
+  prepararResumen();
+  pintarNota();
+  $("pieGen").textContent = `Generado: ${GENERADO} · Mejora Continua · Zubex Industrial`;
+  window.addEventListener("hashchange", mostrarVista);
+  mostrarVista();
+}
+
+// ===================== Navegación =====================
+function mostrarVista() {
+  const v = ["general", "evaluacion", "resumen"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "general";
+  ["general", "evaluacion", "resumen"].forEach((x) => { $("vista-" + x).hidden = x !== v; });
+  document.querySelectorAll("[data-vista]").forEach((a) => { if (a.dataset.vista === v) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  if (v === "general") $("subtitulo").textContent = `General · ${nombreMes($("selMes").value)}`;
+  if (v === "evaluacion") pintarEvaluacion();
+  if (v === "resumen") pintarResumen();
+}
+
+// ===================== GENERAL =====================
+function prepararGeneral() {
+  const meses = [...new Set(todas.map((a) => a.mes))].sort().reverse();
+  if (!meses.includes(MES_HOY)) meses.unshift(MES_HOY);
+  $("selMes").innerHTML = meses.map((m) => `<option value="${m}">${nombreMes(m)}</option>`).join("");
+  const conCerradas = meses.find((m) => cerradasDe(m).length);
+  $("selMes").value = conCerradas || meses[0];
+  $("selMes").addEventListener("change", () => { pintarGeneral(); $("subtitulo").textContent = `General · ${nombreMes($("selMes").value)}`; });
+  pintarGeneral();
+}
 
 function delta(act, ant, sentido, formato) {
   if (act === null || ant === null) return `<div class="d"><span class="ant">Sin dato del mes anterior</span></div>`;
@@ -204,18 +324,13 @@ function delta(act, ant, sentido, formato) {
   return `<div class="d"><span class="ant">${formato(ant)} →</span> ${formato(act)} <span class="${clase}">${flecha} ${formato(Math.abs(dif), true)}</span></div>`;
 }
 
-function pintar() {
+function pintarGeneral() {
   const mes = $("selMes").value;
   const ant = mesAnterior(mes);
   const act = cerradasDe(mes);
   const prev = cerradasDe(ant);
   const pendientes = todas.filter((a) => a.mes === mes && a.estado !== "cerrada").length;
-  const activos = Object.values(equipos).filter((e) => e.estado === "activo").length;
 
-  $("subtitulo").textContent = `${nombreMes(mes)} · ${act.length} auditorías cerradas`;
-  $("pieGen").textContent = `Generado: ${GENERADO} · Mejora Continua · Zubex Industrial`;
-
-  // ---------- KPIs ----------
   const calAct = promedio(act.map((a) => a.calificacion));
   const calAnt = promedio(prev.map((a) => a.calificacion));
   const certAct = act.length ? act.filter((a) => a.certificado).length : null;
@@ -229,9 +344,8 @@ function pintar() {
     <div class="kpi"><div class="t">Calificación promedio</div><div class="v">${pct(calAct)}</div>${delta(calAct, calAnt, "sube", fPct)}</div>
     <div class="kpi"><div class="t">Equipos certificados</div><div class="v">${certAct ?? "—"}<span style="font-size:1rem;font-weight:400;color:var(--gris)"> de ${act.length}</span></div>${delta(certAct, certAnt, "sube", fNum)}</div>
     <div class="kpi"><div class="t">Áreas de oportunidad</div><div class="v">${opAct ?? "—"}</div>${delta(opAct, opAnt, "baja", fNum)}</div>
-    <div class="kpi"><div class="t">Avance del mes</div><div class="v">${act.length}<span style="font-size:1rem;font-weight:400;color:var(--gris)"> de ${activos}</span></div><div class="d"><span class="neutral">${pendientes} en captura o pendientes de resultados</span></div></div>`;
+    <div class="kpi"><div class="t">Avance del mes</div><div class="v">${act.length}<span style="font-size:1rem;font-weight:400;color:var(--gris)"> de ${activos().length}</span></div><div class="d"><span class="neutral">${pendientes} en captura o pendientes de resultados</span></div></div>`;
 
-  // ---------- Ranking ----------
   const califAnt = {};
   prev.forEach((a) => { califAnt[a.equipoId] = a.calificacion; });
   const orden = [...act].sort((a, b) => b.calificacion - a.calificacion);
@@ -241,7 +355,7 @@ function pintar() {
       : `<span class="${d > 0 ? "mejora" : d < 0 ? "deterioro" : "neutral"}">${d > 0 ? "▲" : d < 0 ? "▼" : "="} ${(Math.abs(d) * 100).toFixed(1)}</span>`;
     return `<tr class="clic" data-eq="${a.equipoId}" tabindex="0">
       <td class="pos">${i + 1}</td>
-      <td><div class="eq">${esc(a.equipo)}</div><div class="dep">${esc(a.departamento)}</div></td>
+      <td><div class="eq">${esc(a.equipo)}</div><div class="dep">${esc(a.departamento)}${equipos[a.equipoId]?.lider ? ` · ${esc(equipos[a.equipoId].lider)}` : ""}</div></td>
       ${BLOQUES.map((b) => `<td class="n">${pct(a.bloques?.[b.id])}</td>`).join("")}
       <td class="n"><b>${pct(a.calificacion)}</b></td>
       <td class="n">${dTxt}</td>
@@ -249,7 +363,6 @@ function pintar() {
     </tr>`;
   }).join("") : `<tr><td colspan="9" class="vacio">No hay auditorías cerradas en ${nombreMes(mes)}.</td></tr>`;
 
-  // ---------- Gráfica de tendencia (línea) ----------
   const meses12 = [];
   for (let m = mes, i = 0; i < 12; i++, m = mesAnterior(m)) meses12.unshift(m);
   const serie = meses12.map((m) => { const p = promedio(cerradasDe(m).map((a) => a.calificacion)); return p === null ? null : +(p * 100).toFixed(1); });
@@ -257,10 +370,9 @@ function pintar() {
   grTend = new Chart($("grTendencia"), {
     type: "line",
     data: { labels: meses12.map(corto), datasets: [{ label: "Calificación promedio (%)", data: serie, borderColor: AZUL, backgroundColor: AZUL, pointRadius: 4, spanGaps: true, tension: 0 }] },
-    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } }, plugins: { legend: { display: true } } }
+    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } } }
   });
 
-  // ---------- Gráfica por bloque (barras agrupadas) ----------
   const promBloque = (lista, id) => { const p = promedio(lista.map((a) => a.bloques?.[id]).filter((v) => v !== null && v !== undefined)); return p === null ? null : +(p * 100).toFixed(1); };
   grBloq?.destroy();
   grBloq = new Chart($("grBloques"), {
@@ -274,83 +386,162 @@ function pintar() {
     },
     options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } } }
   });
-
-  // ---------- Nota metodológica ----------
-  $("nota").innerHTML = `
-    <strong>Nota metodológica.</strong> Fuente: auditorías mensuales de Madurez Lean capturadas en la plataforma (Firebase, proyecto eq-lean).
-    Solo se consideran auditorías <strong>cerradas</strong>, es decir, con desempeño contra metas, ahorros y examen capturados.
-    Se excluyen los equipos en pausa. La calificación de cada punto es la suma de los criterios con "Sí"; cada bloque promedia sus puntos y la calificación final promedia los 4 bloques.
-    Un equipo se certifica si cumple el mínimo de todos los puntos que lo tienen:
-    ${Object.entries(CERTIFICACION).map(([n, [, m]]) => `punto ${n} ≥ ${m * 100} %`).join(", ")}.
-    La variación de la calificación por equipo se expresa en puntos porcentuales contra el mes anterior.`;
 }
 
-// ---------- Detalle de equipo ----------
-$("tbRanking").addEventListener("click", (e) => { const tr = e.target.closest("[data-eq]"); if (tr) abrirDetalle(tr.dataset.eq); });
-$("tbRanking").addEventListener("keydown", (e) => { const tr = e.target.closest("[data-eq]"); if (tr && e.key === "Enter") abrirDetalle(tr.dataset.eq); });
+// Clic en el ranking → abre la evaluación de ese equipo y mes
+function irAEvaluacion(id) {
+  $("selEqEv").value = id;
+  llenarMesesEv();
+  $("selMesEv").value = $("selMes").value;
+  location.hash = "evaluacion";
+  pintarEvaluacion();
+}
+$("tbRanking").addEventListener("click", (e) => { const tr = e.target.closest("[data-eq]"); if (tr) irAEvaluacion(tr.dataset.eq); });
+$("tbRanking").addEventListener("keydown", (e) => { const tr = e.target.closest("[data-eq]"); if (tr && e.key === "Enter") irAEvaluacion(tr.dataset.eq); });
 
-function abrirDetalle(id) {
-  const mes = $("selMes").value;
-  const a = todas.find((x) => x.mes === mes && x.equipoId === id);
-  if (!a) return;
+// ===================== EVALUACIÓN =====================
+function prepararEvaluacion() {
+  const lista = activos();
+  const deptos = [...new Set(lista.map((e) => e.departamento))];
+  $("selEqEv").innerHTML = '<option value="">Selecciona tu equipo</option>' + deptos.map((d) =>
+    `<optgroup label="${esc(d)}">${lista.filter((e) => e.departamento === d).map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("")}</optgroup>`).join("");
+  $("selEqEv").addEventListener("change", () => { llenarMesesEv(); pintarEvaluacion(); });
+  $("selMesEv").addEventListener("change", pintarEvaluacion);
+  $("chkSoloNo").addEventListener("change", () => $("evContenido").classList.toggle("solo-no", $("chkSoloNo").checked));
+  $("btnImpEv").addEventListener("click", () => window.print());
+}
+
+// Solo meses con auditoría terminada (pendiente o cerrada); las que están en captura no se muestran
+function auditoriasVisibles(id) {
+  return todas.filter((a) => a.equipoId === id && a.estado !== "borrador").sort((a, b) => b.mes.localeCompare(a.mes));
+}
+function llenarMesesEv() {
+  const lista = auditoriasVisibles($("selEqEv").value);
+  $("selMesEv").innerHTML = lista.length ? lista.map((a) => `<option value="${a.mes}">${nombreMes(a.mes)}</option>`).join("") : '<option value="">Sin evaluaciones</option>';
+}
+
+function pintarEvaluacion() {
+  const id = $("selEqEv").value;
+  const e = equipos[id];
+  if (!e) { $("subtitulo").textContent = "Evaluación"; $("evContenido").innerHTML = '<p class="vacio">Selecciona tu equipo para consultar su evaluación.</p>'; return; }
+  const a = todas.find((x) => x.equipoId === id && x.mes === $("selMesEv").value && x.estado !== "borrador");
+  $("subtitulo").textContent = `Evaluación · ${e.nombre}`;
+  if (!a) { $("evContenido").innerHTML = '<p class="vacio">Este equipo todavía no tiene evaluaciones terminadas.</p>'; return; }
+
   const calc = calcular(a.respuestas, a.resultados);
   const bajo = puntosBajoMinimo(calc.puntos);
+  const cerrada = a.estado === "cerrada";
+  const resp = a.respuestas || {};
+  const nSi = Object.values(resp).filter((r) => r.v === "y").length;
+  const nNo = totalN(a);
 
-  const oportunidades = PUNTOS.filter((p) => p.criterios).map((p) => {
-    const items = p.criterios.filter((c) => a.respuestas?.[c.id]?.v === "n");
-    if (!items.length) return "";
-    return `<li><b>${p.n}. ${esc(p.titulo)}</b><ul>${items.map((c) =>
-      `<li>${esc(a.respuestas[c.id].t || "Sin descripción")} <span style="color:var(--gris)">(${c.id})</span></li>`).join("")}</ul></li>`;
-  }).join("");
+  const estadoCert = !cerrada ? '<span class="chip pend">Pendiente de resultados</span>'
+    : calc.certificado ? '<span class="chip si">Certificado</span>'
+    : `<span class="chip no">No certificado</span> <span class="no-cumple">No alcanza el mínimo en: punto ${bajo.join(", ")}</span>`;
 
-  $("vistaGeneral").hidden = true;
-  $("vistaDetalle").hidden = false;
-  $("subtitulo").textContent = `${a.equipo} · ${nombreMes(mes)}`;
-  $("vistaDetalle").innerHTML = `
+  const htmlPunto = (p) => {
+    const min = CERTIFICACION[p.n];
+    const v = calc.puntos[p.n];
+    let marca = "";
+    if (min && v !== null) marca = bajo.includes(p.n) ? '<span class="chip no">No cumple</span>' : '<span class="chip si">Cumple</span>';
+    const cab = `<div class="ev-punto-cab"><span class="num">${p.n}</span><h4>${esc(p.titulo)}</h4>
+      <span class="dep">${min ? `Mínimo ${min[1] * 100} %` : "Sin mínimo"}</span>
+      <span class="cal">${v === null ? '<span style="color:var(--gris)">Pendiente</span>' : pct(v)}</span>${marca}</div>`;
+    if (p.valor) {
+      return `<div class="ev-punto ${v === null || !bajo.includes(p.n) ? "todo-si" : ""}">${cab}
+        <div class="ev-crit"><span></span><div class="txt">${esc(p.descripcion)}</div></div></div>`;
+    }
+    const todoSi = p.criterios.every((c) => resp[c.id]?.v === "y");
+    return `<div class="ev-punto ${todoSi ? "todo-si" : ""}">${cab}
+      ${p.criterios.map((c) => {
+        const r = resp[c.id] || {};
+        const chip = r.v === "y" ? '<span class="chip si">Cumple</span>' : r.v === "n" ? '<span class="chip no">No cumple</span>' : "";
+        const com = r.t ? `<div class="com"><b>${r.v === "n" ? "Área de oportunidad:" : "Evidencia:"}</b> ${esc(r.t)}</div>` : "";
+        return `<div class="ev-crit ${r.v || ""}"><div>${chip}</div><div><div class="txt"><b style="color:var(--azul)">${c.peso * 100} %</b> ${esc(c.texto)}</div>${com}</div></div>`;
+      }).join("")}</div>`;
+  };
+
+  $("evContenido").innerHTML = `
     <div class="detalle-cab">
       <div>
-        <h2>${esc(a.equipo)}</h2>
-        <p class="sub" style="margin:0">${esc(a.departamento)} · ${nombreMes(mes)} · Auditor: ${esc(a.auditor)} · Fecha: ${esc(a.fecha)}</p>
-      </div>
-      <div class="no-imp" style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn sec" id="btnVolver">Volver</button>
-        <button class="btn" id="btnImprimir">Imprimir para pizarrón</button>
+        <h2>${esc(e.nombre)}</h2>
+        <p class="sub" style="margin:0">${esc(e.departamento)}${e.lider ? ` · Líder: ${esc(e.lider)}` : ""} · ${nombreMes(a.mes)} · Auditor: ${esc(a.auditor)} · Fecha: ${esc(a.fecha)}</p>
       </div>
     </div>
-    <p>${calc.certificado ? '<span class="chip si">Certificado</span>'
-      : `<span class="chip no">No certificado</span> <span class="no-cumple">No alcanza el mínimo en: punto ${bajo.join(", ")}</span>`}</p>
-
+    <p>${estadoCert}</p>
     <div class="detalle-bloques">
-      ${BLOQUES.map((b) => `<div><span>${b.nombre}</span><strong>${pct(calc.bloques[b.id])}</strong></div>`).join("")}
-      <div class="final"><span>Calificación final</span><strong>${pct(calc.calificacion)}</strong></div>
+      ${BLOQUES.map((b) => `<div><span>${b.nombre}</span><strong>${calc.bloques[b.id] === null ? "Pendiente" : pct(calc.bloques[b.id])}</strong></div>`).join("")}
+      <div class="final"><span>Calificación final</span><strong>${calc.calificacion === null ? "Pendiente" : pct(calc.calificacion)}</strong></div>
     </div>
-
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <thead><tr><th>#</th><th>Punto</th><th class="n">Calificación</th><th class="n">Mínimo</th></tr></thead>
-        <tbody>${PUNTOS.map((p) => {
-          const min = CERTIFICACION[p.n];
-          const falla = bajo.includes(p.n);
-          return `<tr><td class="pos">${p.n}</td><td>${esc(p.titulo)}</td>
-            <td class="n ${falla ? "no-cumple" : ""}">${pct(calc.puntos[p.n])}</td>
-            <td class="n">${min ? min[1] * 100 + " %" : "—"}</td></tr>`;
-        }).join("")}</tbody>
-      </table>
-    </div>
-
-    <div class="oport">
-      <h3>Áreas de oportunidad (${totalN(a)})</h3>
-      ${oportunidades ? `<ul>${oportunidades}</ul>` : '<p class="sub">Sin áreas de oportunidad este mes.</p>'}
-    </div>`;
-  $("btnVolver").onclick = cerrarDetalle;
-  $("btnImprimir").onclick = () => window.print();
-  window.scrollTo({ top: 0 });
+    ${(() => {
+      const meta = metaDe(e.departamento, a.mes);
+      if (meta === null) return "";
+      if (calc.calificacion === null) return `<p class="sub">Meta del mes: <b>${pct(meta)}</b></p>`;
+      const ok = Math.round(calc.calificacion * 1000) >= Math.round(meta * 1000);
+      return `<p class="sub">Meta del mes: <b>${pct(meta)}</b> · <b class="${ok ? "mejora" : "deterioro"}">${ok ? "Meta alcanzada" : `Faltan ${((meta - calc.calificacion) * 100).toFixed(1)} pts para la meta`}</b></p>`;
+    })()}
+    <p class="sub"><b style="color:var(--verde)">${nSi} criterios cumplen</b> · <b style="color:var(--naranja)">${nNo} no cumplen</b> de ${nSi + nNo} evaluados.</p>
+    ${BLOQUES.map((b) => `<h3 class="bloque-h">${b.nombre}</h3>${b.puntos.map((n) => htmlPunto(PUNTOS.find((p) => p.n === n))).join("")}`).join("")}`;
+  $("evContenido").classList.toggle("solo-no", $("chkSoloNo").checked);
 }
 
-function cerrarDetalle() {
-  $("vistaDetalle").hidden = true;
-  $("vistaGeneral").hidden = false;
-  if ($("selMes").value) $("subtitulo").textContent = `${nombreMes($("selMes").value)} · ${cerradasDe($("selMes").value).length} auditorías cerradas`;
+// ===================== RESUMEN =====================
+function prepararResumen() {
+  const anios = new Set([String(ahora.getFullYear())]);
+  todas.forEach((a) => anios.add(a.mes.slice(0, 4)));
+  historial.forEach((h) => h.mes && anios.add(h.mes.slice(0, 4)));
+  $("selAnio").innerHTML = [...anios].sort().reverse().map((a) => `<option>${a}</option>`).join("");
+  $("selAnio").addEventListener("change", pintarResumen);
+  $("btnImpRes").addEventListener("click", () => window.print());
+}
+
+function pintarResumen() {
+  const anio = $("selAnio").value;
+  $("subtitulo").textContent = `Resumen ${anio}`;
+  $("resTitulo").textContent = `Historial de calificaciones ${anio}`;
+  const meses = MESES_C.map((_, i) => `${anio}-${String(i + 1).padStart(2, "0")}`);
+
+  // Dato por equipo y mes: primero el historial del Excel, y encima lo cerrado en la plataforma
+  const dato = {};
+  historial.filter((h) => h.mes?.startsWith(anio)).forEach((h) => { dato[`${h.equipoId}_${h.mes}`] = { cal: h.calificacion, cert: h.certificado, hist: true }; });
+  todas.filter((a) => a.estado === "cerrada" && a.mes.startsWith(anio)).forEach((a) => { dato[`${a.equipoId}_${a.mes}`] = { cal: a.calificacion, cert: a.certificado, hist: false }; });
+
+  const lista = activos();
+  const filas = lista.map((e) => {
+    const vals = meses.map((m) => dato[`${e.id}_${m}`]);
+    const prom = promedio(vals.filter(Boolean).map((v) => v.cal));
+    return `<tr><td><div class="eq">${esc(e.nombre)}</div><div class="dep">${esc(e.departamento)}</div></td>
+      ${vals.map((v, i) => {
+        const meta = metaDe(e.departamento, meses[i]);
+        const clase = !v || meta === null ? "" : Math.round(v.cal * 1000) >= Math.round(meta * 1000) ? "ok" : "bajo";
+        return `<td class="n ${clase} ${v?.hist ? "hist" : ""}" ${meta !== null && v ? `title="Meta: ${pct(meta)}"` : ""}>${v ? pct(v.cal, 0) : "—"}</td>`;
+      }).join("")}
+      <td class="n prom">${pct(prom, 1)}</td></tr>`;
+  }).join("");
+
+  const promMes = meses.map((m) => promedio(lista.map((e) => dato[`${e.id}_${m}`]).filter(Boolean).map((v) => v.cal)));
+  const okMes = meses.map((m) => lista.filter((e) => { const v = dato[`${e.id}_${m}`]; const meta = metaDe(e.departamento, m); return v && meta !== null && Math.round(v.cal * 1000) >= Math.round(meta * 1000); }).length);
+  const hayMes = meses.map((m) => lista.some((e) => dato[`${e.id}_${m}`]));
+
+  $("tbResumen").innerHTML = `
+    <thead><tr><th>Equipo</th>${MESES_C.map((m) => `<th class="n">${m}</th>`).join("")}<th class="n">Promedio</th></tr></thead>
+    <tbody>${filas || '<tr><td colspan="14" class="vacio">Sin equipos activos.</td></tr>'}</tbody>
+    <tfoot>
+      <tr><td>Promedio general</td>${promMes.map((p) => `<td class="n">${pct(p, 1)}</td>`).join("")}<td class="n">${pct(promedio(promMes.filter((p) => p !== null)), 1)}</td></tr>
+      <tr><td>Equipos que alcanzaron la meta</td>${okMes.map((c, i) => `<td class="n">${hayMes[i] ? c : "—"}</td>`).join("")}<td></td></tr>
+      <tr class="meta"><td>Meta Planta</td>${meses.map((m) => `<td class="n">${pct(metas[anio]?.planta?.[Number(m.slice(5)) - 1] ?? null, 0)}</td>`).join("")}<td></td></tr>
+    </tfoot>`;
+}
+
+// ===================== Nota metodológica =====================
+function pintarNota() {
+  $("nota").innerHTML = `
+    <strong>Nota metodológica.</strong> Fuente: auditorías mensuales de Madurez Lean capturadas en la plataforma (Firebase, proyecto eq-lean)${historial.length ? " e historial de calificaciones importado del Excel" : ""}.
+    En General y Resumen solo se consideran auditorías <strong>cerradas</strong> (con desempeño contra metas, ahorros y examen capturados); en Evaluación también se muestran las pendientes de resultados.
+    Se excluyen los equipos en pausa. La calificación de cada punto es la suma de los criterios que cumplen; cada bloque promedia sus puntos y la calificación final promedia los 4 bloques.
+    Un equipo se certifica si cumple el mínimo de todos los puntos que lo tienen:
+    ${Object.entries(CERTIFICACION).map(([n, [, m]]) => `punto ${n} ≥ ${m * 100} %`).join(", ")}.
+    En Resumen, el color compara la calificación contra la meta mensual del departamento (meta de Planta, salvo los meses donde Compras o Ingeniería tienen una meta propia).`;
 }
 
 cargar().catch((err) => {
