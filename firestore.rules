@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Equipos: cualquiera puede leer; se pueden crear y actualizar, nunca borrar
+    match /lean_equipos/{equipoId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.nombre is string
+                            && request.resource.data.departamento is string
+                            && request.resource.data.estado in ['activo', 'pausa'];
+      allow delete: if false;
+    }
+
+    // Auditorías: un documento por equipo por mes (ID = AAAA-MM_equipo)
+    match /lean_auditorias/{auditoriaId} {
+      allow read: if true;
+      allow create: if auditoriaId == request.resource.data.mes + '_' + request.resource.data.equipoId
+                    && request.resource.data.mes.matches('^[0-9]{4}-[0-9]{2}$')
+                    && request.resource.data.estado in ['borrador', 'pendiente'];
+      // Una auditoría cerrada ya no se puede modificar desde las páginas
+      allow update: if resource.data.estado != 'cerrada'
+                    && request.resource.data.mes == resource.data.mes
+                    && request.resource.data.equipoId == resource.data.equipoId
+                    && request.resource.data.estado in ['borrador', 'pendiente', 'cerrada'];
+      allow delete: if false;
+    }
+
+    // Todo lo demás está bloqueado
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

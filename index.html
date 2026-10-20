@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Captura · Madurez Lean · Zubex</title>
+<link rel="stylesheet" href="css/lean.css">
+</head>
+<body>
+
+<header class="barra">
+  <h1>Evaluación de Madurez Lean</h1>
+  <span class="mes" id="txtMes"></span>
+  <span class="estado-guardado" id="txtGuardado"></span>
+</header>
+
+<main class="contenedor">
+
+  <!-- Carga inicial de equipos (solo aparece si la base está vacía) -->
+  <section class="panel" id="panelSemilla" hidden>
+    <h2>Aún no hay equipos registrados</h2>
+    <p class="sub">Carga los 25 equipos del archivo de septiembre para empezar. Los Pibes, Los Inalcanzables y Los Jefes quedan en pausa.</p>
+    <button class="btn" id="btnSemilla">Cargar equipos</button>
+  </section>
+
+  <!-- Inicio: auditor y equipo -->
+  <section class="panel" id="panelInicio" hidden>
+    <h2>Nueva auditoría</h2>
+    <p class="sub">La fecha se toma del día de hoy. Cada equipo tiene una auditoría por mes.</p>
+
+    <div class="campo">
+      <label for="inpAuditor">Auditor</label>
+      <input id="inpAuditor" type="text" autocomplete="name" placeholder="Tu nombre">
+    </div>
+    <div class="campo">
+      <label for="selEquipo">Equipo</label>
+      <select id="selEquipo"><option value="">Selecciona un equipo</option></select>
+    </div>
+
+    <div id="infoEquipo"></div>
+
+    <button class="btn" id="btnComenzar" disabled>Comenzar</button>
+  </section>
+
+  <!-- Formulario -->
+  <section id="panelForm" hidden>
+    <div class="mapa">
+      <div class="mapa-equipo">
+        <strong id="txtEquipo"></strong>
+        <span id="txtEquipoInfo"></span>
+      </div>
+      <div class="celdas" id="celdas"></div>
+      <div class="bloque-etqs">
+        <span>Educación y Cultura</span><span>Solución de Problemas</span><span>Mejora Continua</span><span>Resultados</span>
+      </div>
+    </div>
+    <div id="formPuntos"></div>
+  </section>
+
+  <!-- Resumen al terminar o al abrir una auditoría cerrada -->
+  <section class="panel" id="panelResumen" hidden></section>
+
+</main>
+
+<footer class="pie" id="pie" hidden>
+  <div class="pie-in">
+    <div class="progreso">
+      <div class="progreso-txt" id="txtProgreso"></div>
+      <div class="progreso-barra"><div id="barraProgreso"></div></div>
+    </div>
+    <button class="btn sec" id="btnCambiar">Cambiar equipo</button>
+    <button class="btn" id="btnTerminar" disabled>Terminar auditoría</button>
+  </div>
+</footer>
+
+<script type="module">
+import { db } from "./js/firebase-config.js";
+import {
+  collection, getDocs, getDoc, setDoc, doc, query, where, writeBatch, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { PUNTOS, BLOQUES, CERTIFICACION, EQUIPOS_INICIALES, VERSION_CATALOGO } from "./js/catalogo.js";
+import { calcular, faltantes, pct, puntosBajoMinimo } from "./js/calculo.js";
+
+// ---------- Utilidades ----------
+const $ = (id) => document.getElementById(id);
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const hoy = new Date();
+const MES_ACTUAL = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+const FECHA_HOY = `${MES_ACTUAL}-${String(hoy.getDate()).padStart(2, "0")}`;
+const nombreMes = (m) => { const [a, mm] = m.split("-"); return `${MESES[Number(mm) - 1]} ${a}`; };
+const slug = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const TOTAL_YN = PUNTOS.reduce((s, p) => s + (p.criterios ? p.criterios.length : 0), 0);
+
+$("txtMes").textContent = nombreMes(MES_ACTUAL).replace(/^./, (c) => c.toUpperCase());
+
+// ---------- Estado ----------
+let equipos = [];
+let equipo = null;           // equipo seleccionado
+let auditoria = null;        // documento en edición
+let existente = null;        // auditoría de este mes ya guardada
+let anterior = null;         // auditoría más reciente de meses anteriores
+let soloLectura = false;
+let temporizador = null;
+
+// ---------- Equipos ----------
+async function cargarEquipos() {
+  const snap = await getDocs(collection(db, "lean_equipos"));
+  equipos = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (!equipos.length) { $("panelSemilla").hidden = false; return; }
+  $("panelSemilla").hidden = true;
+  $("panelInicio").hidden = false;
+
+  const activos = equipos.filter((e) => e.estado === "activo");
+  const deptos = [...new Set(activos.map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
+  $("selEquipo").innerHTML = '<option value="">Selecciona un equipo</option>' + deptos.map((d) =>
+    `<optgroup label="${esc(d)}">` +
+    activos.filter((e) => e.departamento === d).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+      .map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("") +
+    "</optgroup>").join("");
+}
+
+$("btnSemilla").addEventListener("click", async () => {
+  $("btnSemilla").disabled = true;
+  $("btnSemilla").textContent = "Cargando…";
+  try {
+    const lote = writeBatch(db);
+    EQUIPOS_INICIALES.forEach((e) => lote.set(doc(db, "lean_equipos", slug(e.nombre)), e));
+    await lote.commit();
+    await cargarEquipos();
+  } catch (err) {
+    console.error(err);
+    $("btnSemilla").disabled = false;
+    $("btnSemilla").textContent = "Cargar equipos";
+    alert("No se pudieron cargar los equipos. Revisa que las reglas de Firestore estén publicadas.");
+  }
+});
+
+// ---------- Selección de equipo ----------
+$("inpAuditor").value = localStorage.getItem("lean_auditor") || "";
+$("inpAuditor").addEventListener("input", validarInicio);
+
+$("selEquipo").addEventListener("change", async () => {
+  existente = anterior = null;
+  equipo = equipos.find((e) => e.id === $("selEquipo").value) || null;
+  $("infoEquipo").innerHTML = "";
+  validarInicio();
+  if (!equipo) return;
+
+  $("infoEquipo").innerHTML = '<p class="aviso">Buscando auditorías del equipo…</p>';
+  const snap = await getDocs(query(collection(db, "lean_auditorias"), where("equipoId", "==", equipo.id)));
+  const lista = snap.docs.map((d) => d.data());
+  existente = lista.find((a) => a.mes === MES_ACTUAL) || null;
+  anterior = lista.filter((a) => a.mes < MES_ACTUAL).sort((a, b) => b.mes.localeCompare(a.mes))[0] || null;
+
+  let html = "";
+  if (existente?.estado === "cerrada") {
+    html = `<p class="aviso">La auditoría de ${nombreMes(MES_ACTUAL)} de este equipo ya está cerrada. Puedes consultarla, pero no modificarla.</p>`;
+  } else if (existente) {
+    html = `<p class="aviso">Este equipo ya tiene una auditoría de ${nombreMes(MES_ACTUAL)} (${existente.estado === "pendiente" ? "terminada, pendiente de resultados" : "en captura"}), guardada por ${esc(existente.auditor)}. Al comenzar la continúas.</p>`;
+  } else if (anterior) {
+    html = `<label class="check"><input type="checkbox" id="chkPrecargar">
+      <span>Precargar respuestas y comentarios de ${nombreMes(anterior.mes)}. Revisa cada criterio antes de terminar.</span></label>`;
+  }
+  $("infoEquipo").innerHTML = html;
+  validarInicio();
+});
+
+function validarInicio() {
+  $("btnComenzar").disabled = !(equipo && $("inpAuditor").value.trim());
+  $("btnComenzar").textContent = existente?.estado === "cerrada" ? "Ver auditoría" : existente ? "Continuar" : "Comenzar";
+}
+
+$("btnComenzar").addEventListener("click", () => {
+  const auditor = $("inpAuditor").value.trim();
+  localStorage.setItem("lean_auditor", auditor);
+
+  if (existente) {
+    auditoria = structuredClone(existente);
+    if (existente.estado !== "cerrada") auditoria.auditor = auditor;
+  } else {
+    const precargar = $("chkPrecargar")?.checked && anterior;
+    auditoria = {
+      mes: MES_ACTUAL,
+      equipoId: equipo.id,
+      equipo: equipo.nombre,
+      departamento: equipo.departamento,
+      auditor,
+      fecha: FECHA_HOY,
+      version: VERSION_CATALOGO,
+      estado: "borrador",
+      respuestas: precargar ? structuredClone(anterior.respuestas || {}) : {},
+      resultados: { desempeno: null, ahorro: null, examen: null },
+      precargadoDe: precargar ? anterior.mes : null
+    };
+  }
+  soloLectura = auditoria.estado === "cerrada";
+  if (soloLectura) { mostrarResumen(); return; }
+  abrirFormulario();
+  if (!existente && auditoria.precargadoDe) guardar(); // guarda de inmediato lo precargado
+});
+
+// ---------- Formulario ----------
+function abrirFormulario() {
+  $("panelInicio").hidden = true;
+  $("panelResumen").hidden = true;
+  $("panelForm").hidden = false;
+  $("pie").hidden = false;
+  $("txtEquipo").textContent = auditoria.equipo;
+  $("txtEquipoInfo").textContent = `${auditoria.departamento} · Auditor: ${auditoria.auditor}`;
+
+  // Mapa de 19 puntos
+  $("celdas").innerHTML = PUNTOS.map((p) => p.valor
+    ? `<div class="celda pendiente" title="Punto ${p.n}: se captura en Administración"><b>${p.n}</b></div>`
+    : `<button class="celda" id="celda-${p.n}" data-ir="${p.n}" title="Punto ${p.n}: ${esc(p.titulo)}"><span class="relleno"></span><b>${p.n}</b></button>`
+  ).join("");
+
+  // Puntos agrupados por bloque
+  $("formPuntos").innerHTML = BLOQUES.map((b) => `
+    <h2 class="bloque-titulo">${b.nombre}</h2>
+    ${b.puntos.map((n) => htmlPunto(PUNTOS.find((p) => p.n === n))).join("")}
+  `).join("");
+
+  refrescar();
+  window.scrollTo({ top: 0 });
+}
+
+function htmlPunto(p) {
+  const min = CERTIFICACION[p.n] ? `<span class="punto-min">Mínimo para certificar: ${CERTIFICACION[p.n][0] === ">" ? "más de " : ""}${CERTIFICACION[p.n][1] * 100} %</span>` : "";
+  if (p.valor) {
+    const v = auditoria.resultados?.[p.valor];
+    return `
+      <article class="punto pendiente-valor" id="punto-${p.n}">
+        <div class="punto-cab"><span class="punto-num">${p.n}</span><h3>${esc(p.titulo)}<br>${min}</h3></div>
+        <div class="valor-pendiente"><p>${esc(p.descripcion)}</p>
+          ${v === null || v === undefined ? "Pendiente: se captura en Administración antes de cerrar la auditoría." : `Capturado: ${pct(v)}`}
+        </div>
+      </article>`;
+  }
+  return `
+    <article class="punto" id="punto-${p.n}">
+      <div class="punto-cab"><span class="punto-num">${p.n}</span><h3>${esc(p.titulo)}<br>${min}</h3><span class="punto-cal" id="cal-${p.n}"></span></div>
+      ${p.criterios.map((c) => {
+        const r = auditoria.respuestas[c.id] || {};
+        return `
+        <div class="criterio" data-id="${c.id}" ${r.v ? `data-v="${r.v}"` : ""}>
+          <div class="criterio-fila">
+            <div class="criterio-texto"><span class="peso">${c.peso * 100} %</span>${esc(c.texto)}</div>
+            <div class="yn" role="group" aria-label="Criterio ${c.id}">
+              <button type="button" class="y" data-v="y" aria-pressed="${r.v === "y"}">Sí</button>
+              <button type="button" class="n" data-v="n" aria-pressed="${r.v === "n"}">No</button>
+            </div>
+          </div>
+          <div class="comentario">
+            <label for="t-${c.id}">${r.v === "n" ? "Área de oportunidad" : "Evidencia que muestra el equipo"}</label>
+            <textarea id="t-${c.id}" rows="2">${esc(r.t || "")}</textarea>
+          </div>
+        </div>`;
+      }).join("")}
+    </article>`;
+}
+
+// Clic en Sí / No
+$("formPuntos").addEventListener("click", (e) => {
+  const btn = e.target.closest(".yn button");
+  if (!btn) return;
+  const cont = btn.closest(".criterio");
+  const id = cont.dataset.id;
+  const v = btn.dataset.v;
+  auditoria.respuestas[id] = { ...(auditoria.respuestas[id] || {}), v };
+  cont.dataset.v = v;
+  cont.querySelectorAll(".yn button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === v));
+  cont.querySelector(".comentario label").textContent = v === "n" ? "Área de oportunidad" : "Evidencia que muestra el equipo";
+  refrescar();
+  programarGuardado();
+});
+
+// Comentarios
+$("formPuntos").addEventListener("input", (e) => {
+  if (e.target.tagName !== "TEXTAREA") return;
+  const id = e.target.closest(".criterio").dataset.id;
+  auditoria.respuestas[id] = { ...(auditoria.respuestas[id] || {}), t: e.target.value };
+  programarGuardado();
+});
+
+// Navegar desde el mapa
+$("celdas").addEventListener("click", (e) => {
+  const c = e.target.closest("[data-ir]");
+  if (c) $("punto-" + c.dataset.ir).scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+function refrescar() {
+  const calc = calcular(auditoria.respuestas, auditoria.resultados);
+  PUNTOS.filter((p) => p.criterios).forEach((p) => {
+    const contestados = p.criterios.filter((c) => ["y", "n"].includes(auditoria.respuestas[c.id]?.v)).length;
+    const conN = p.criterios.some((c) => auditoria.respuestas[c.id]?.v === "n");
+    const celda = $("celda-" + p.n);
+    celda.querySelector(".relleno").style.height = (contestados / p.criterios.length * 100) + "%";
+    celda.classList.toggle("completa", contestados === p.criterios.length);
+    celda.classList.toggle("con-n", conN);
+    $("cal-" + p.n).textContent = contestados ? pct(calc.puntos[p.n]) : "";
+  });
+  const falta = faltantes(auditoria.respuestas).length;
+  const hechos = TOTAL_YN - falta;
+  $("txtProgreso").textContent = falta ? `${hechos} de ${TOTAL_YN} criterios contestados` : "Todos los criterios contestados";
+  $("barraProgreso").style.width = (hechos / TOTAL_YN * 100) + "%";
+  $("btnTerminar").disabled = falta > 0;
+  $("btnTerminar").textContent = auditoria.estado === "pendiente" ? "Guardar cambios" : "Terminar auditoría";
+}
+
+// ---------- Guardado ----------
+function programarGuardado() {
+  $("txtGuardado").textContent = "Cambios sin guardar";
+  clearTimeout(temporizador);
+  temporizador = setTimeout(guardar, 1500);
+}
+
+async function guardar() {
+  clearTimeout(temporizador);
+  const calc = calcular(auditoria.respuestas, auditoria.resultados);
+  const id = `${auditoria.mes}_${auditoria.equipoId}`;
+  const datos = {
+    ...auditoria,
+    fecha: FECHA_HOY,
+    puntos: calc.puntos,
+    bloques: calc.bloques,
+    calificacion: calc.calificacion,
+    certificado: calc.certificado,
+    actualizado: serverTimestamp()
+  };
+  if (!existente) datos.creado = serverTimestamp();
+  $("txtGuardado").textContent = "Guardando…";
+  try {
+    await setDoc(doc(db, "lean_auditorias", id), datos, { merge: true });
+    existente = existente || { ...auditoria };
+    const h = new Date();
+    $("txtGuardado").textContent = `Guardado ${String(h.getHours()).padStart(2, "0")}:${String(h.getMinutes()).padStart(2, "0")}`;
+    return true;
+  } catch (err) {
+    console.error(err);
+    $("txtGuardado").textContent = "Error al guardar: revisa tu conexión";
+    return false;
+  }
+}
+
+$("btnTerminar").addEventListener("click", async () => {
+  if (faltantes(auditoria.respuestas).length) return;
+  auditoria.estado = "pendiente";
+  if (await guardar()) mostrarResumen();
+});
+
+$("btnCambiar").addEventListener("click", async () => {
+  if (temporizador) await guardar();
+  location.reload();
+});
+
+window.addEventListener("beforeunload", (e) => {
+  if ($("txtGuardado").textContent === "Cambios sin guardar") { e.preventDefault(); e.returnValue = ""; }
+});
+
+// ---------- Resumen ----------
+function mostrarResumen() {
+  const calc = calcular(auditoria.respuestas, auditoria.resultados);
+  const totalN = Object.values(auditoria.respuestas).filter((r) => r.v === "n").length;
+  const etiqueta = { borrador: "En captura", pendiente: "Pendiente de resultados", cerrada: "Cerrada" }[auditoria.estado];
+
+  $("panelInicio").hidden = true;
+  $("panelForm").hidden = true;
+  $("pie").hidden = true;
+  $("panelResumen").hidden = false;
+  $("panelResumen").innerHTML = `
+    <span class="estado-chip ${auditoria.estado}">${etiqueta}</span>
+    <h2 style="margin-top:10px">${esc(auditoria.equipo)}</h2>
+    <p class="sub">${esc(auditoria.departamento)} · ${nombreMes(auditoria.mes)} · Auditor: ${esc(auditoria.auditor)}</p>
+
+    <div class="resumen-bloques">
+      ${BLOQUES.map((b) => {
+        const v = calc.bloques[b.id];
+        return `<div class="res-bloque ${v === null ? "pend" : ""}"><span>${b.nombre}</span><strong>${v === null ? "Pendiente" : pct(v)}</strong></div>`;
+      }).join("")}
+    </div>
+
+    ${auditoria.estado === "cerrada"
+      ? `<p><strong>Calificación final: ${pct(calc.calificacion)}</strong> · ${calc.certificado ? "Certificado" : `No certificado (no alcanza el mínimo en el punto ${puntosBajoMinimo(calc.puntos).join(", ")})`}</p>`
+      : `<p class="aviso">Faltan desempeño contra metas, ahorros y examen. La calificación final y la certificación se calculan cuando se capturen en Administración.</p>`}
+
+    <p>${totalN ? `${totalN} área${totalN === 1 ? "" : "s"} de oportunidad registrada${totalN === 1 ? "" : "s"}.` : "Sin áreas de oportunidad."}</p>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px">
+      ${auditoria.estado !== "cerrada" ? '<button class="btn sec" id="btnEditar">Editar respuestas</button>' : ""}
+      <button class="btn" id="btnOtra">Auditar otro equipo</button>
+    </div>`;
+  $("btnOtra").onclick = () => location.reload();
+  if ($("btnEditar")) $("btnEditar").onclick = abrirFormulario;
+}
+
+// ---------- Arranque ----------
+cargarEquipos().catch((err) => {
+  console.error(err);
+  document.querySelector(".contenedor").insertAdjacentHTML("afterbegin",
+    '<p class="aviso error">No se pudo conectar con la base de datos. Revisa tu conexión y que las reglas de Firestore estén publicadas.</p>');
+});
+</script>
+</body>
+</html>
