@@ -49,6 +49,16 @@
   .tabla td input.edit:focus { outline: none; border-color: var(--azul); background: var(--blanco); }
 
   .login { max-width: 380px; margin: 60px auto; }
+  .tbl-metas-wrap { overflow-x: auto; margin-bottom: 16px; }
+  .tbl-metas { border-collapse: collapse; background: var(--blanco); border: 1px solid var(--linea); font-size: 0.9rem; }
+  .tbl-metas th, .tbl-metas td { padding: 6px; border-bottom: 1px solid var(--linea); text-align: center; }
+  .tbl-metas th { font-size: 0.75rem; color: var(--gris); background: var(--papel); }
+  .tbl-metas td:first-child, .tbl-metas th:first-child { text-align: left; white-space: nowrap; padding-left: 12px; font-weight: 600; position: sticky; left: 0; background: var(--blanco); }
+  .tbl-metas tr.planta td { background: var(--azul-claro); }
+  .tbl-metas input { width: 56px; padding: 6px 4px; border: 1.5px solid var(--linea); border-radius: 6px; text-align: center; min-height: 36px; }
+  .tbl-metas input:focus { outline: none; border-color: var(--azul); }
+  .tbl-metas input:placeholder-shown { background: var(--papel); }
+  .tbl-metas input.invalido { border-color: var(--naranja); }
 
   @media (max-width: 760px) {
     .tabla thead { display: none; }
@@ -85,6 +95,7 @@
     <nav class="pestanas" role="tablist">
       <button role="tab" aria-selected="true" data-tab="auditorias">Auditorías del mes</button>
       <button role="tab" aria-selected="false" data-tab="equipos">Equipos</button>
+      <button role="tab" aria-selected="false" data-tab="metas">Metas</button>
     </nav>
 
     <!-- Auditorías -->
@@ -111,27 +122,43 @@
 
     <!-- Equipos -->
     <div id="tabEquipos" hidden>
+      <div class="aviso" id="panelHistorial" hidden>
+        <strong>Historial 2026 sin importar.</strong> Carga las calificaciones de enero a octubre del Excel para que aparezcan en Resumen. Solo se hace una vez.
+        <div style="margin-top:10px"><button class="btn" id="btnHistorial">Importar historial</button></div>
+      </div>
       <div class="nuevo-equipo">
         <div class="campo"><label for="inpNuevoNombre">Nombre del equipo nuevo</label><input id="inpNuevoNombre" type="text"></div>
         <div class="campo"><label for="inpNuevoDepto">Departamento</label><input id="inpNuevoDepto" type="text" list="listaDeptos"></div>
+        <div class="campo"><label for="inpNuevoLider">Líder</label><input id="inpNuevoLider" type="text"></div>
         <datalist id="listaDeptos"></datalist>
         <button class="btn" id="btnAgregar">Agregar equipo</button>
       </div>
-      <p class="muted">Los equipos en pausa no aparecen en la captura ni cuentan en los resultados. Puedes corregir nombre y departamento escribiendo sobre ellos.</p>
+      <p class="muted">Los equipos en pausa no aparecen en la captura ni cuentan en los resultados. Puedes corregir nombre, departamento y líder escribiendo sobre ellos.</p>
       <table class="tabla">
-        <thead><tr><th>Equipo</th><th>Departamento</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Equipo</th><th>Departamento</th><th>Líder</th><th>Estado</th></tr></thead>
         <tbody id="tbEquipos"></tbody>
       </table>
+    </div>
+    <!-- Metas -->
+    <div id="tabMetas" hidden>
+      <div class="barra-filtros">
+        <div class="campo"><label for="selAnioMeta">Año</label><select id="selAnioMeta"></select></div>
+        <button class="btn" id="btnGuardarMetas" style="margin-bottom:2px">Guardar metas</button>
+      </div>
+      <div id="avisoMetas"></div>
+      <p class="muted">Metas de calificación en %. La fila <b>Planta</b> aplica a todos los departamentos. En un departamento, deja vacío el mes que usa la meta de Planta y escribe solo los meses que son diferentes. Un mes vacío en Planta significa que no hay meta.</p>
+      <div class="tbl-metas-wrap"><table class="tbl-metas" id="tbMetas"></table></div>
     </div>
   </section>
 </main>
 
-<script type="module">
+<script type="module" id="principal">
 import { db } from "./js/firebase-config.js";
 import {
-  collection, getDocs, doc, setDoc, updateDoc, query, where, serverTimestamp
+  collection, getDocs, getDoc, doc, setDoc, updateDoc, query, where, serverTimestamp, writeBatch, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { calcular, puntosBajoMinimo, pct } from "./js/calculo.js";
+import { HISTORIAL, METAS_2026 } from "./js/historial.js";
 
 // Contraseña guardada como huella SHA-256 (no como texto).
 // Es un candado básico para evitar cambios accidentales, no una protección fuerte.
@@ -172,6 +199,8 @@ document.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click
   document.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-selected", x === b));
   $("tabAuditorias").hidden = b.dataset.tab !== "auditorias";
   $("tabEquipos").hidden = b.dataset.tab !== "equipos";
+  $("tabMetas").hidden = b.dataset.tab !== "metas";
+  if (b.dataset.tab === "metas") cargarMetas();
 }));
 
 // ---------- Inicio ----------
@@ -192,7 +221,27 @@ async function iniciar() {
 
   await cargarEquipos();
   await cargarAuditorias();
+  const h = await getDocs(query(collection(db, "lean_historial"), limit(1)));
+  $("panelHistorial").hidden = !h.empty;
 }
+
+$("btnHistorial").addEventListener("click", async () => {
+  if (!confirm(`Se importarán ${HISTORIAL.length} calificaciones del Excel. ¿Continuar?`)) return;
+  $("btnHistorial").disabled = true;
+  $("btnHistorial").textContent = "Importando…";
+  try {
+    const lote = writeBatch(db);
+    HISTORIAL.forEach((r) => lote.set(doc(db, "lean_historial", `${r.mes}_${r.equipoId}`), { ...r, certificado: null, fuente: "excel" }));
+    await lote.commit();
+    $("panelHistorial").hidden = true;
+    avisar(`Historial importado: ${HISTORIAL.length} calificaciones`);
+  } catch (err) {
+    console.error(err);
+    alert("No se pudo importar. Revisa que las reglas nuevas de Firestore estén publicadas.");
+    $("btnHistorial").disabled = false;
+    $("btnHistorial").textContent = "Importar historial";
+  }
+});
 
 async function cargarEquipos() {
   const snap = await getDocs(collection(db, "lean_equipos"));
@@ -226,7 +275,7 @@ function pintarAuditorias() {
     const a = auditorias[e.id];
     const estado = a?.estado || "sin";
     const chip = `<span class="estado-chip ${estado}">${a ? ETIQUETA[estado] : "Sin auditar"}</span>`;
-    const cab = `<td><div class="eq">${esc(e.nombre)}</div><div class="dep">${esc(e.departamento)}${a ? ` · ${esc(a.auditor)}` : ""}${e.estado === "pausa" ? " · en pausa" : ""}</div></td>
+    const cab = `<td><div class="eq">${esc(e.nombre)}</div><div class="dep">${esc(e.departamento)}${e.lider ? ` · Líder: ${esc(e.lider)}` : ""}${a ? ` · Auditor: ${esc(a.auditor)}` : ""}${e.estado === "pausa" ? " · en pausa" : ""}</div></td>
                  <td data-l="Estatus">${chip}</td>`;
 
     if (!a) return `<tr>${cab}<td colspan="6" class="muted">Sin auditoría este mes</td></tr>`;
@@ -326,6 +375,7 @@ function pintarEquipos() {
     <tr>
       <td data-l="Equipo"><input class="edit" data-id="${e.id}" data-campo="nombre" value="${esc(e.nombre)}" aria-label="Nombre"></td>
       <td data-l="Departamento"><input class="edit" data-id="${e.id}" data-campo="departamento" value="${esc(e.departamento)}" list="listaDeptos" aria-label="Departamento"></td>
+      <td data-l="Líder"><input class="edit" data-id="${e.id}" data-campo="lider" value="${esc(e.lider || "")}" placeholder="Sin asignar" aria-label="Líder"></td>
       <td data-l="Estado"><div class="toggle">
         <button class="act" data-id="${e.id}" data-estado="activo" aria-pressed="${e.estado === "activo"}">Activo</button>
         <button class="pau" data-id="${e.id}" data-estado="pausa" aria-pressed="${e.estado === "pausa"}">En pausa</button>
@@ -335,7 +385,7 @@ function pintarEquipos() {
 
 async function guardarEquipo(id, cambios) {
   const e = equipos.find((x) => x.id === id);
-  const nuevo = { nombre: e.nombre, departamento: e.departamento, estado: e.estado, ...cambios };
+  const nuevo = { nombre: e.nombre, departamento: e.departamento, lider: e.lider || "", estado: e.estado, ...cambios };
   try {
     await setDoc(doc(db, "lean_equipos", id), nuevo);
     Object.assign(e, nuevo);
@@ -362,25 +412,106 @@ $("tbEquipos").addEventListener("change", async (ev) => {
   if (!inp.dataset.campo) return;
   const v = inp.value.trim();
   const e = equipos.find((x) => x.id === inp.dataset.id);
-  if (!v) { inp.value = e[inp.dataset.campo]; return; }
+  if (!v && inp.dataset.campo !== "lider") { inp.value = e[inp.dataset.campo]; return; }
   if (await guardarEquipo(inp.dataset.id, { [inp.dataset.campo]: v })) pintarAuditorias();
 });
 
 $("btnAgregar").addEventListener("click", async () => {
   const nombre = $("inpNuevoNombre").value.trim();
   const departamento = $("inpNuevoDepto").value.trim();
+  const lider = $("inpNuevoLider").value.trim();
   if (!nombre || !departamento) { alert("Escribe el nombre y el departamento."); return; }
   const id = slug(nombre);
   if (equipos.some((e) => e.id === id)) { alert("Ya existe un equipo con ese nombre."); return; }
   try {
-    await setDoc(doc(db, "lean_equipos", id), { nombre, departamento, estado: "activo" });
-    $("inpNuevoNombre").value = $("inpNuevoDepto").value = "";
+    await setDoc(doc(db, "lean_equipos", id), { nombre, departamento, lider, estado: "activo" });
+    $("inpNuevoNombre").value = $("inpNuevoDepto").value = $("inpNuevoLider").value = "";
     avisar(`${nombre}: agregado`);
     await cargarEquipos();
     pintarAuditorias();
   } catch (err) {
     console.error(err);
     alert("No se pudo agregar el equipo.");
+  }
+});
+
+// ---------- Metas ----------
+const MESES_C = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+let metasCargadas = false;
+
+async function cargarMetas() {
+  if (!metasCargadas) {
+    const a = new Date().getFullYear();
+    $("selAnioMeta").innerHTML = [a - 1, a, a + 1].map((x) => `<option ${x === a ? "selected" : ""}>${x}</option>`).join("");
+    $("selAnioMeta").addEventListener("change", pintarMetas);
+    metasCargadas = true;
+  }
+  pintarMetas();
+}
+
+async function pintarMetas() {
+  const anio = $("selAnioMeta").value;
+  $("tbMetas").innerHTML = '<tr><td class="muted">Cargando…</td></tr>';
+  const snap = await getDoc(doc(db, "lean_metas", anio));
+  let datos = snap.exists() ? snap.data() : null;
+  let aviso = "";
+  if (!datos && anio === "2026") {
+    datos = METAS_2026;
+    aviso = '<p class="aviso">Estas son las metas del Excel de 2026. Revisa y da clic en <b>Guardar metas</b> para dejarlas registradas.</p>';
+  } else if (!datos) {
+    const prev = await getDoc(doc(db, "lean_metas", String(Number(anio) - 1)));
+    datos = prev.exists() ? prev.data() : (anio === "2027" ? METAS_2026 : { planta: Array(12).fill(null), excepciones: {} });
+    aviso = `<p class="aviso">Aún no hay metas para ${anio}. Se muestran las del año anterior como punto de partida: ajústalas y da clic en <b>Guardar metas</b>.</p>`;
+  }
+  $("avisoMetas").innerHTML = aviso;
+
+  const deptos = [...new Set([...equipos.map((e) => e.departamento), ...Object.keys(datos.excepciones || {})])].sort((a, b) => a.localeCompare(b, "es"));
+  const celda = (v, fila, i, ph) => `<td><input type="number" min="0" max="100" step="0.1" inputmode="decimal" data-fila="${esc(fila)}" data-m="${i}"
+      value="${v === null || v === undefined ? "" : +(v * 100).toFixed(1)}" ${ph !== undefined && ph !== null ? `placeholder="${+(ph * 100).toFixed(1)}"` : ""}></td>`;
+  $("tbMetas").innerHTML = `
+    <thead><tr><th>Departamento</th>${MESES_C.map((m) => `<th>${m}</th>`).join("")}</tr></thead>
+    <tbody>
+      <tr class="planta"><td>Planta</td>${datos.planta.map((v, i) => celda(v, "__planta", i)).join("")}</tr>
+      ${deptos.map((d) => `<tr><td>${esc(d)}</td>${MESES_C.map((_, i) => celda(datos.excepciones?.[d]?.[i], d, i, datos.planta[i])).join("")}</tr>`).join("")}
+    </tbody>`;
+}
+
+// Al cambiar Planta se actualiza la referencia gris de los departamentos
+$("tbMetas").addEventListener("input", (e) => {
+  if (e.target.dataset.fila !== "__planta") return;
+  const i = e.target.dataset.m;
+  document.querySelectorAll(`#tbMetas input[data-m="${i}"]:not([data-fila="__planta"])`).forEach((inp) => { inp.placeholder = e.target.value; });
+});
+
+$("btnGuardarMetas").addEventListener("click", async () => {
+  const anio = $("selAnioMeta").value;
+  const planta = Array(12).fill(null);
+  const excepciones = {};
+  let valido = true;
+  document.querySelectorAll("#tbMetas input").forEach((inp) => {
+    const t = inp.value.trim();
+    const n = Number(t);
+    const ok = t === "" || (!isNaN(n) && n >= 0 && n <= 100);
+    inp.classList.toggle("invalido", !ok);
+    if (!ok) { valido = false; return; }
+    if (t === "") return;
+    const i = Number(inp.dataset.m);
+    if (inp.dataset.fila === "__planta") planta[i] = n / 100;
+    else (excepciones[inp.dataset.fila] ||= Array(12).fill(null))[i] = n / 100;
+  });
+  if (!valido) { alert("Las metas deben estar entre 0 y 100."); return; }
+  // Quita de las excepciones los meses iguales a Planta
+  Object.keys(excepciones).forEach((d) => {
+    excepciones[d] = excepciones[d].map((v, i) => (v !== null && v === planta[i] ? null : v));
+    if (excepciones[d].every((v) => v === null)) delete excepciones[d];
+  });
+  try {
+    await setDoc(doc(db, "lean_metas", anio), { anio: Number(anio), planta, excepciones, actualizado: serverTimestamp() });
+    avisar(`Metas ${anio} guardadas`);
+    pintarMetas();
+  } catch (err) {
+    console.error(err);
+    alert("No se pudieron guardar. Revisa que las reglas nuevas de Firestore estén publicadas.");
   }
 });
 
