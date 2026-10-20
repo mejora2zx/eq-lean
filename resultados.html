@@ -256,6 +256,7 @@ Chart.defaults.color = "#5D6178";
 
 let equipos = {};       // id -> equipo
 let todas = [];         // auditorías de equipos activos (todos los estados)
+let todasConPausa = []; // todas las auditorías, incluidas las de equipos hoy en pausa (para el historial)
 let historial = [];     // calificaciones importadas del Excel
 let metas = {};         // año -> { planta: [12], excepciones: { depto: [12] } }
 
@@ -282,7 +283,8 @@ async function cargar() {
     getDocs(collection(db, "lean_auditorias"))
   ]);
   snapE.docs.forEach((d) => { equipos[d.id] = { id: d.id, ...d.data() }; });
-  todas = snapA.docs.map((d) => d.data()).filter((a) => equipos[a.equipoId]?.estado === "activo");
+  todasConPausa = snapA.docs.map((d) => d.data()).filter((a) => equipos[a.equipoId]);
+  todas = todasConPausa.filter((a) => equipos[a.equipoId].estado === "activo");
   try {
     const snapH = await getDocs(collection(db, "lean_historial"));
     historial = snapH.docs.map((d) => d.data());
@@ -492,13 +494,22 @@ function pintarEvaluacion() {
 }
 
 // ===================== RESUMEN =====================
+// En Resumen entran los equipos activos y también los que hoy están en pausa pero tienen calificaciones registradas
+function equiposResumen() {
+  const conDatos = new Set([
+    ...historial.map((h) => h.equipoId),
+    ...todasConPausa.filter((a) => a.estado === "cerrada").map((a) => a.equipoId)
+  ]);
+  return Object.values(equipos).filter((e) => e.estado === "activo" || conDatos.has(e.id));
+}
+
 function prepararResumen() {
   const anios = new Set([String(ahora.getFullYear())]);
   todas.forEach((a) => anios.add(a.mes.slice(0, 4)));
   historial.forEach((h) => h.mes && anios.add(h.mes.slice(0, 4)));
   $("selAnio").innerHTML = [...anios].sort().reverse().map((a) => `<option>${a}</option>`).join("");
 
-  const deptos = [...new Set(activos().map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
+  const deptos = [...new Set(equiposResumen().map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
   $("selDepRes").innerHTML = '<option value="">Todos</option>' + deptos.map((d) => `<option>${esc(d)}</option>`).join("");
   llenarEquiposRes();
 
@@ -510,7 +521,7 @@ function prepararResumen() {
 
 function llenarEquiposRes() {
   const dep = $("selDepRes").value;
-  const lista = activos().filter((e) => !dep || e.departamento === dep).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const lista = equiposResumen().filter((e) => !dep || e.departamento === dep).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   $("selEqRes").innerHTML = '<option value="">Todos</option>' + lista.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("");
 }
 
@@ -528,7 +539,7 @@ function pintarResumen() {
   // Dato por equipo y mes: historial del Excel, y encima lo cerrado en la plataforma
   const dato = {};
   historial.filter((h) => h.mes?.startsWith(anio)).forEach((h) => { dato[`${h.equipoId}_${h.mes}`] = h.calificacion; });
-  todas.filter((a) => a.estado === "cerrada" && a.mes.startsWith(anio)).forEach((a) => { dato[`${a.equipoId}_${a.mes}`] = a.calificacion; });
+  todasConPausa.filter((a) => a.estado === "cerrada" && a.mes.startsWith(anio)).forEach((a) => { dato[`${a.equipoId}_${a.mes}`] = a.calificacion; });
 
   // Celda coloreada contra una meta
   const celda = (v, meta, dec = 0) => {
@@ -544,7 +555,9 @@ function pintarResumen() {
     return celda(prom, mets.length ? promedio(mets) : null, 1);
   };
 
-  const lista = activos().filter((e) => (!dep || e.departamento === dep) && (!eqSel || e.id === eqSel));
+  // Activos siempre; los que están en pausa solo si tienen alguna calificación en el año
+  const lista = equiposResumen().filter((e) => (!dep || e.departamento === dep) && (!eqSel || e.id === eqSel))
+    .filter((e) => e.estado === "activo" || meses.some((m) => dato[`${e.id}_${m}`] !== undefined));
   const deptos = [...new Set(lista.map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
 
   let cuerpo = "";
@@ -554,7 +567,7 @@ function pintarResumen() {
     cuerpo += `<tr class="grupo"><td colspan="14">${esc(d)}</td></tr>`;
     eqs.forEach((e) => {
       const vals = meses.map((m) => dato[`${e.id}_${m}`] ?? null);
-      cuerpo += `<tr><td><span class="eq">${esc(e.nombre)}</span>${e.lider ? `<div class="dep">${esc(e.lider)}</div>` : ""}</td>
+      cuerpo += `<tr><td><span class="eq">${esc(e.nombre)}</span>${e.estado === "pausa" ? ' <span class="dep">(en pausa)</span>' : ""}${e.lider ? `<div class="dep">${esc(e.lider)}</div>` : ""}</td>
         ${vals.map((v, i) => celda(v, metasMes[i])).join("")}${celdaAnual(vals, metasMes)}</tr>`;
     });
     if (eqs.length > 1) {
@@ -582,7 +595,7 @@ function pintarNota() {
   $("nota").innerHTML = `
     <strong>Nota metodológica.</strong> Fuente: auditorías mensuales de Madurez Lean capturadas en la plataforma (Firebase, proyecto eq-lean)${historial.length ? " e historial de calificaciones importado del Excel" : ""}.
     En General y Resumen solo se consideran auditorías <strong>cerradas</strong> (con desempeño contra metas, ahorros y examen capturados); en Evaluación también se muestran las pendientes de resultados.
-    Se excluyen los equipos en pausa. La calificación de cada punto es la suma de los criterios que cumplen; cada bloque promedia sus puntos y la calificación final promedia los 4 bloques.
+    Los equipos en pausa se excluyen de General y Evaluación; en Resumen se muestran solo los meses en que sí tuvieron calificación. La calificación de cada punto es la suma de los criterios que cumplen; cada bloque promedia sus puntos y la calificación final promedia los 4 bloques.
     Un equipo se certifica si cumple el mínimo de todos los puntos que lo tienen:
     ${Object.entries(CERTIFICACION).map(([n, [, m]]) => `punto ${n} ≥ ${m * 100} %`).join(", ")}.
     En Resumen, el color compara la calificación contra la meta mensual del departamento (meta de Planta, salvo los meses donde Compras o Ingeniería tienen una meta propia).`;
