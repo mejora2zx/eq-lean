@@ -118,19 +118,23 @@
   .solo-no .ev-crit.y { display: none; }
   .solo-no .ev-punto.todo-si { display: none; }
 
-  /* Resumen */
-  .tbl-res td, .tbl-res th { text-align: center; }
-  .tbl-res td:first-child, .tbl-res th:first-child { text-align: left; position: sticky; left: 0; z-index: 1; }
-  .tbl-res td:first-child { background: #fff; }
-  .tbl-res tbody tr:nth-child(even) td:first-child { background: #f1f5fd; }
-  .tbl-res td.ok { background: var(--verde-claro) !important; color: var(--verde); font-weight: 700; }
-  .tbl-res td.bajo { background: var(--naranja-claro) !important; color: var(--naranja); font-weight: 600; }
-  .tbl-res .ok, .tbl-res .bajo { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Resumen (colores fijos para que no dependan de la hoja de estilos) */
+  .tbl-res { border-collapse: separate; border-spacing: 0; }
+  .tbl-res th { text-align: center; }
+  .tbl-res td { text-align: center; padding: 8px 6px; border-bottom: 0; border-right: 3px solid #fff; border-top: 3px solid #fff; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .tbl-res tbody tr:nth-child(even) td { background: #fff; }
+  .tbl-res td:first-child, .tbl-res th:first-child { text-align: left; position: sticky; left: 0; z-index: 1; min-width: 190px; }
+  .tbl-res td:first-child { background: #fff; font-weight: 400; }
+  .tbl-res td.ok   { background: #dcfce7 !important; color: #166534; }
+  .tbl-res td.bajo { background: #fee2e2 !important; color: #991b1b; }
+  .tbl-res td.vacio-c { color: #cbd5e1; font-weight: 400; }
+  .tbl-res tr.grupo td { background: #0D18A8 !important; color: #fff; font-weight: 700; text-align: left; padding: 8px 12px; }
+  .tbl-res tr.subtotal td { font-weight: 700; }
+  .tbl-res tr.subtotal td:first-child { font-weight: 700; color: var(--azul); }
+  .tbl-res tfoot td { font-weight: 700; background: #dbeafe; border-top: 3px solid #fff; }
   .tbl-res tfoot tr.meta td { background: #fff; color: var(--gris); font-weight: 500; }
+  .tbl-res .ok, .tbl-res .bajo, .tbl-res tr.grupo td, .tbl-res tfoot td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
-  .tbl-res .prom { font-weight: 700; background: var(--azul-claro) !important; }
-  .tbl-res tfoot td { font-weight: 700; background: var(--azul-claro); border-top: 2px solid var(--azul); }
-  .tbl-res .hist { font-style: italic; }
   .leyenda { font-size: 0.85rem; color: var(--gris); margin-top: 10px; }
 
   @media (max-width: 640px) { .ev-crit { grid-template-columns: 1fr; gap: 6px; } }
@@ -209,13 +213,15 @@
   <div id="vista-resumen" hidden>
     <div class="filtros no-imp">
       <div class="campo"><label for="selAnio">Año</label><select id="selAnio"></select></div>
+      <div class="campo"><label for="selDepRes">Departamento</label><select id="selDepRes"></select></div>
+      <div class="campo"><label for="selEqRes">Equipo Lean</label><select id="selEqRes"></select></div>
       <button class="btn" id="btnImpRes" style="margin-bottom:2px">Imprimir</button>
     </div>
     <section class="seccion">
       <h2 id="resTitulo">Historial de calificaciones</h2>
-      <p class="sub">Calificación final de cada equipo por mes contra la meta de su departamento.</p>
+      <p class="sub">Calificación final (%) de cada equipo por mes contra la meta de su departamento.</p>
       <div class="tbl-wrap"><table class="tbl tbl-res" id="tbResumen"></table></div>
-      <p class="leyenda"><span class="sw" style="background:var(--verde-claro);border:1px solid var(--verde)"></span>Alcanzó o superó la meta del mes · <span class="sw" style="background:var(--naranja-claro);border:1px solid var(--naranja)"></span>Debajo de la meta · Valores en <i>cursiva</i>: historial del Excel (redondeados) · —: sin evaluación. Compras e Ingeniería se comparan contra su propia meta en los meses donde es diferente a la de Planta.</p>
+      <p class="leyenda"><span class="sw" style="background:#dcfce7;border:1px solid #166534"></span>Cumple la meta del mes · <span class="sw" style="background:#fee2e2;border:1px solid #991b1b"></span>Debajo de la meta · — sin evaluación. El promedio anual se compara contra el promedio de las metas de los meses evaluados. Pasa el mouse sobre una celda para ver su meta.</p>
     </section>
   </div>
 
@@ -491,45 +497,83 @@ function prepararResumen() {
   todas.forEach((a) => anios.add(a.mes.slice(0, 4)));
   historial.forEach((h) => h.mes && anios.add(h.mes.slice(0, 4)));
   $("selAnio").innerHTML = [...anios].sort().reverse().map((a) => `<option>${a}</option>`).join("");
+
+  const deptos = [...new Set(activos().map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
+  $("selDepRes").innerHTML = '<option value="">Todos</option>' + deptos.map((d) => `<option>${esc(d)}</option>`).join("");
+  llenarEquiposRes();
+
   $("selAnio").addEventListener("change", pintarResumen);
+  $("selDepRes").addEventListener("change", () => { llenarEquiposRes(); pintarResumen(); });
+  $("selEqRes").addEventListener("change", pintarResumen);
   $("btnImpRes").addEventListener("click", () => window.print());
 }
 
+function llenarEquiposRes() {
+  const dep = $("selDepRes").value;
+  const lista = activos().filter((e) => !dep || e.departamento === dep).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  $("selEqRes").innerHTML = '<option value="">Todos</option>' + lista.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("");
+}
+
+const cumple = (cal, meta) => Math.round(cal * 1000) >= Math.round(meta * 1000);
+const num = (v, dec = 0) => v === null || v === undefined ? "—" : (v * 100).toFixed(dec).replace(/\.0+$/, "");
+
 function pintarResumen() {
   const anio = $("selAnio").value;
+  const dep = $("selDepRes").value;
+  const eqSel = $("selEqRes").value;
   $("subtitulo").textContent = `Resumen ${anio}`;
-  $("resTitulo").textContent = `Historial de calificaciones ${anio}`;
+  $("resTitulo").textContent = `Historial de calificaciones ${anio}${dep ? ` · ${dep}` : ""}${eqSel ? ` · ${equipos[eqSel]?.nombre}` : ""}`;
   const meses = MESES_C.map((_, i) => `${anio}-${String(i + 1).padStart(2, "0")}`);
 
-  // Dato por equipo y mes: primero el historial del Excel, y encima lo cerrado en la plataforma
+  // Dato por equipo y mes: historial del Excel, y encima lo cerrado en la plataforma
   const dato = {};
-  historial.filter((h) => h.mes?.startsWith(anio)).forEach((h) => { dato[`${h.equipoId}_${h.mes}`] = { cal: h.calificacion, cert: h.certificado, hist: true }; });
-  todas.filter((a) => a.estado === "cerrada" && a.mes.startsWith(anio)).forEach((a) => { dato[`${a.equipoId}_${a.mes}`] = { cal: a.calificacion, cert: a.certificado, hist: false }; });
+  historial.filter((h) => h.mes?.startsWith(anio)).forEach((h) => { dato[`${h.equipoId}_${h.mes}`] = h.calificacion; });
+  todas.filter((a) => a.estado === "cerrada" && a.mes.startsWith(anio)).forEach((a) => { dato[`${a.equipoId}_${a.mes}`] = a.calificacion; });
 
-  const lista = activos();
-  const filas = lista.map((e) => {
-    const vals = meses.map((m) => dato[`${e.id}_${m}`]);
-    const prom = promedio(vals.filter(Boolean).map((v) => v.cal));
-    return `<tr><td><div class="eq">${esc(e.nombre)}</div><div class="dep">${esc(e.departamento)}</div></td>
-      ${vals.map((v, i) => {
-        const meta = metaDe(e.departamento, meses[i]);
-        const clase = !v || meta === null ? "" : Math.round(v.cal * 1000) >= Math.round(meta * 1000) ? "ok" : "bajo";
-        return `<td class="n ${clase} ${v?.hist ? "hist" : ""}" ${meta !== null && v ? `title="Meta: ${pct(meta)}"` : ""}>${v ? pct(v.cal, 0) : "—"}</td>`;
-      }).join("")}
-      <td class="n prom">${pct(prom, 1)}</td></tr>`;
-  }).join("");
+  // Celda coloreada contra una meta
+  const celda = (v, meta, dec = 0) => {
+    if (v === null || v === undefined) return '<td class="vacio-c">—</td>';
+    const clase = meta === null || meta === undefined ? "" : cumple(v, meta) ? "ok" : "bajo";
+    return `<td class="${clase}" ${meta !== null && meta !== undefined ? `title="Meta: ${num(meta, 1)} %"` : ""}>${num(v, dec)}</td>`;
+  };
+  // Promedio anual contra el promedio de las metas de los meses con dato
+  const celdaAnual = (vals, metasMes) => {
+    const idx = vals.map((v, i) => (v !== null && v !== undefined ? i : -1)).filter((i) => i >= 0);
+    const prom = promedio(idx.map((i) => vals[i]));
+    const mets = idx.map((i) => metasMes[i]).filter((m) => m !== null && m !== undefined);
+    return celda(prom, mets.length ? promedio(mets) : null, 1);
+  };
 
-  const promMes = meses.map((m) => promedio(lista.map((e) => dato[`${e.id}_${m}`]).filter(Boolean).map((v) => v.cal)));
-  const okMes = meses.map((m) => lista.filter((e) => { const v = dato[`${e.id}_${m}`]; const meta = metaDe(e.departamento, m); return v && meta !== null && Math.round(v.cal * 1000) >= Math.round(meta * 1000); }).length);
-  const hayMes = meses.map((m) => lista.some((e) => dato[`${e.id}_${m}`]));
+  const lista = activos().filter((e) => (!dep || e.departamento === dep) && (!eqSel || e.id === eqSel));
+  const deptos = [...new Set(lista.map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
+
+  let cuerpo = "";
+  deptos.forEach((d) => {
+    const eqs = lista.filter((e) => e.departamento === d).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    const metasMes = meses.map((m) => metaDe(d, m));
+    cuerpo += `<tr class="grupo"><td colspan="14">${esc(d)}</td></tr>`;
+    eqs.forEach((e) => {
+      const vals = meses.map((m) => dato[`${e.id}_${m}`] ?? null);
+      cuerpo += `<tr><td><span class="eq">${esc(e.nombre)}</span>${e.lider ? `<div class="dep">${esc(e.lider)}</div>` : ""}</td>
+        ${vals.map((v, i) => celda(v, metasMes[i])).join("")}${celdaAnual(vals, metasMes)}</tr>`;
+    });
+    if (eqs.length > 1) {
+      const vals = meses.map((m) => promedio(eqs.map((e) => dato[`${e.id}_${m}`]).filter((v) => v !== undefined && v !== null)));
+      cuerpo += `<tr class="subtotal"><td>Resultado ${esc(d)}</td>${vals.map((v, i) => celda(v, metasMes[i], 1)).join("")}${celdaAnual(vals, metasMes)}</tr>`;
+    }
+  });
+
+  const promMes = meses.map((m) => promedio(lista.map((e) => dato[`${e.id}_${m}`]).filter((v) => v !== undefined && v !== null)));
+  const okMes = meses.map((m) => lista.filter((e) => { const v = dato[`${e.id}_${m}`]; const meta = metaDe(e.departamento, m); return v !== undefined && meta !== null && cumple(v, meta); }).length);
+  const evalMes = meses.map((m) => lista.filter((e) => dato[`${e.id}_${m}`] !== undefined).length);
 
   $("tbResumen").innerHTML = `
-    <thead><tr><th>Equipo</th>${MESES_C.map((m) => `<th class="n">${m}</th>`).join("")}<th class="n">Promedio</th></tr></thead>
-    <tbody>${filas || '<tr><td colspan="14" class="vacio">Sin equipos activos.</td></tr>'}</tbody>
+    <thead><tr><th>Equipo</th>${MESES_C.map((m) => `<th>${m}</th>`).join("")}<th>Anual</th></tr></thead>
+    <tbody>${cuerpo || '<tr><td colspan="14" class="vacio">Sin equipos para este filtro.</td></tr>'}</tbody>
     <tfoot>
-      <tr><td>Promedio general</td>${promMes.map((p) => `<td class="n">${pct(p, 1)}</td>`).join("")}<td class="n">${pct(promedio(promMes.filter((p) => p !== null)), 1)}</td></tr>
-      <tr><td>Equipos que alcanzaron la meta</td>${okMes.map((c, i) => `<td class="n">${hayMes[i] ? c : "—"}</td>`).join("")}<td></td></tr>
-      <tr class="meta"><td>Meta Planta</td>${meses.map((m) => `<td class="n">${pct(metas[anio]?.planta?.[Number(m.slice(5)) - 1] ?? null, 0)}</td>`).join("")}<td></td></tr>
+      <tr><td>Promedio general</td>${promMes.map((p) => `<td>${num(p, 1)}</td>`).join("")}<td>${num(promedio(promMes.filter((p) => p !== null)), 1)}</td></tr>
+      <tr><td>Equipos que cumplen la meta</td>${okMes.map((c, i) => `<td>${evalMes[i] ? `${c} de ${evalMes[i]}` : "—"}</td>`).join("")}<td></td></tr>
+      <tr class="meta"><td>Meta Planta</td>${meses.map((m) => `<td>${num(metas[anio]?.planta?.[Number(m.slice(5)) - 1] ?? null)}</td>`).join("")}<td></td></tr>
     </tfoot>`;
 }
 
