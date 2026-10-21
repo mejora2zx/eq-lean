@@ -118,6 +118,25 @@
   .solo-no .ev-crit.y { display: none; }
   .solo-no .ev-punto.todo-si { display: none; }
 
+  /* Mejor equipo y resumen por departamento */
+  .dos { display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; margin-bottom: 24px; }
+  .dos .seccion { margin-bottom: 0; }
+  .mejor { background: var(--azul); color: #fff; border-color: var(--azul); display: flex; flex-direction: column; }
+  .mejor h2 { color: #fff; }
+  .mejor .sub { color: #fff; opacity: .85; }
+  .mejor-eq { display: flex; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.25); }
+  .mejor-eq:first-of-type { border-top: 0; }
+  .mejor-eq .ico { font-size: 2.4rem; line-height: 1; }
+  .mejor-eq .nom { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+  .mejor-eq .det { font-size: .85rem; opacity: .85; }
+  .mejor-eq .cal { margin-left: auto; font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .mejor .vacio { color: #fff; opacity: .8; }
+  .mejor { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .tbl-dep td.ok { background: #dcfce7; color: #166534; font-weight: 700; }
+  .tbl-dep td.bajo { background: #fee2e2; color: #991b1b; font-weight: 700; }
+  .tbl-res .corona { display: block; font-size: .95rem; line-height: 1; margin-bottom: 2px; }
+  @media (max-width: 860px) { .dos { grid-template-columns: 1fr; } }
+
   /* Resumen (colores fijos para que no dependan de la hoja de estilos) */
   .tbl-res { border-collapse: separate; border-spacing: 0; }
   .tbl-res th { text-align: center; }
@@ -167,6 +186,20 @@
       <div class="campo"><label for="selMes">Mes</label><select id="selMes"></select></div>
     </div>
     <div class="kpis" id="kpis"></div>
+
+    <div class="dos">
+      <section class="seccion mejor" id="mejorEquipo"></section>
+      <section class="seccion">
+        <h2>Resumen por departamento</h2>
+        <p class="sub">Promedio de las auditorías cerradas del mes, contra la meta del departamento.</p>
+        <div class="tbl-wrap">
+          <table class="tbl tbl-dep">
+            <thead><tr><th>Departamento</th><th class="n">Equipos</th><th class="n">Evaluados</th><th class="n">Promedio</th></tr></thead>
+            <tbody id="tbDeptos"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
 
     <section class="seccion">
       <h2>Ranking de equipos</h2>
@@ -221,7 +254,7 @@
       <h2 id="resTitulo">Historial de calificaciones</h2>
       <p class="sub">Calificación final (%) de cada equipo por mes contra la meta de su departamento.</p>
       <div class="tbl-wrap"><table class="tbl tbl-res" id="tbResumen"></table></div>
-      <p class="leyenda"><span class="sw" style="background:#dcfce7;border:1px solid #166534"></span>Cumple la meta del mes · <span class="sw" style="background:#fee2e2;border:1px solid #991b1b"></span>Debajo de la meta · — sin evaluación. El promedio anual se compara contra el promedio de las metas de los meses evaluados. Pasa el mouse sobre una celda para ver su meta.</p>
+      <p class="leyenda"><span class="sw" style="background:#dcfce7;border:1px solid #166534"></span>Cumple la meta del mes · <span class="sw" style="background:#fee2e2;border:1px solid #991b1b"></span>Debajo de la meta · — sin evaluación. El promedio anual se compara contra el promedio de las metas de los meses evaluados. Pasa el mouse sobre una celda para ver su meta. 👑 Mejor Equipo Lean del mes (mayor calificación; en empate se marcan todos).</p>
     </section>
   </div>
 
@@ -259,6 +292,15 @@ let todas = [];         // auditorías de equipos activos (todos los estados)
 let todasConPausa = []; // todas las auditorías, incluidas las de equipos hoy en pausa (para el historial)
 let historial = [];     // calificaciones importadas del Excel
 let metas = {};         // año -> { planta: [12], excepciones: { depto: [12] } }
+
+// Mejor(es) equipo(s): la calificación más alta, redondeada a un decimal como se muestra; en empate, todos
+function mejoresDe(lista) {
+  const validos = lista.filter((x) => x.cal !== null && x.cal !== undefined);
+  if (!validos.length) return [];
+  const r = (v) => Math.round(v * 1000);
+  const max = Math.max(...validos.map((x) => r(x.cal)));
+  return validos.filter((x) => r(x.cal) === max);
+}
 
 // Meta del mes para un departamento (fracción 0–1) o null si no hay meta
 function metaDe(depto, mes) {
@@ -357,6 +399,31 @@ function pintarGeneral() {
   const califAnt = {};
   prev.forEach((a) => { califAnt[a.equipoId] = a.calificacion; });
   const orden = [...act].sort((a, b) => b.calificacion - a.calificacion);
+  // ---------- Mejor Equipo Lean del mes ----------
+  const mejores = mejoresDe(act.map((a) => ({ id: a.equipoId, cal: a.calificacion })));
+  $("mejorEquipo").innerHTML = `
+    <h2>Mejor Equipo Lean del mes</h2>
+    <p class="sub">${nombreMes(mes)}${mejores.length > 1 ? " · Empate" : ""}</p>
+    ${mejores.length ? mejores.map((m) => {
+      const e = equipos[m.id];
+      return `<div class="mejor-eq"><span class="ico" aria-hidden="true">👑</span>
+        <div><div class="nom">${esc(e?.nombre)}</div><div class="det">${esc(e?.departamento)}${e?.lider ? ` · Líder: ${esc(e.lider)}` : ""}</div></div>
+        <span class="cal">${pct(m.cal)}</span></div>`;
+    }).join("") : '<p class="vacio">Sin auditorías cerradas este mes.</p>'}`;
+
+  // ---------- Resumen por departamento ----------
+  const deptosEq = {};
+  activos().forEach((e) => { (deptosEq[e.departamento] ||= []).push(e.id); });
+  const filasDep = Object.entries(deptosEq).map(([d, ids]) => {
+    const cals = act.filter((a) => ids.includes(a.equipoId)).map((a) => a.calificacion);
+    return { d, n: ids.length, ev: cals.length, prom: promedio(cals), meta: metaDe(d, mes) };
+  }).sort((a, b) => b.n - a.n || a.d.localeCompare(b.d, "es"));
+  $("tbDeptos").innerHTML = filasDep.map((f) => {
+    const clase = f.prom === null || f.meta === null ? "" : Math.round(f.prom * 1000) >= Math.round(f.meta * 1000) ? "ok" : "bajo";
+    return `<tr><td>${esc(f.d)}</td><td class="n">${f.n}</td><td class="n">${f.ev}</td>
+      <td class="n ${clase}" ${f.meta !== null ? `title="Meta: ${pct(f.meta)}"` : ""}>${pct(f.prom)}</td></tr>`;
+  }).join("");
+
   $("tbRanking").innerHTML = orden.length ? orden.map((a, i) => {
     const d = califAnt[a.equipoId] !== undefined ? a.calificacion - califAnt[a.equipoId] : null;
     const dTxt = d === null ? '<span style="color:var(--gris)">—</span>'
@@ -542,10 +609,11 @@ function pintarResumen() {
   todasConPausa.filter((a) => a.estado === "cerrada" && a.mes.startsWith(anio)).forEach((a) => { dato[`${a.equipoId}_${a.mes}`] = a.calificacion; });
 
   // Celda coloreada contra una meta
-  const celda = (v, meta, dec = 0) => {
+  const celda = (v, meta, dec = 0, corona = false) => {
     if (v === null || v === undefined) return '<td class="vacio-c">—</td>';
     const clase = meta === null || meta === undefined ? "" : cumple(v, meta) ? "ok" : "bajo";
-    return `<td class="${clase}" ${meta !== null && meta !== undefined ? `title="Meta: ${num(meta, 1)} %"` : ""}>${num(v, dec)}</td>`;
+    const tit = [meta !== null && meta !== undefined ? `Meta: ${num(meta, 1)} %` : "", corona ? "Mejor Equipo Lean del mes" : ""].filter(Boolean).join(" · ");
+    return `<td class="${clase}" ${tit ? `title="${tit}"` : ""}>${corona ? '<span class="corona" aria-label="Mejor Equipo Lean del mes">👑</span>' : ""}${num(v, dec)}</td>`;
   };
   // Promedio anual contra el promedio de las metas de los meses con dato
   const celdaAnual = (vals, metasMes) => {
@@ -560,6 +628,13 @@ function pintarResumen() {
     .filter((e) => e.estado === "activo" || meses.some((m) => dato[`${e.id}_${m}`] !== undefined));
   const deptos = [...new Set(lista.map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
 
+  // Coronas: se calculan con todos los equipos del mes, sin importar los filtros
+  const coronas = new Set();
+  meses.forEach((m) => {
+    const delMes = Object.entries(dato).filter(([k]) => k.endsWith("_" + m)).map(([k, cal]) => ({ id: k.slice(0, -(m.length + 1)), cal }));
+    mejoresDe(delMes).forEach((x) => coronas.add(`${x.id}_${m}`));
+  });
+
   let cuerpo = "";
   deptos.forEach((d) => {
     const eqs = lista.filter((e) => e.departamento === d).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -568,7 +643,7 @@ function pintarResumen() {
     eqs.forEach((e) => {
       const vals = meses.map((m) => dato[`${e.id}_${m}`] ?? null);
       cuerpo += `<tr><td><span class="eq">${esc(e.nombre)}</span>${e.estado === "pausa" ? ' <span class="dep">(en pausa)</span>' : ""}${e.lider ? `<div class="dep">${esc(e.lider)}</div>` : ""}</td>
-        ${vals.map((v, i) => celda(v, metasMes[i])).join("")}${celdaAnual(vals, metasMes)}</tr>`;
+        ${vals.map((v, i) => celda(v, metasMes[i], 0, coronas.has(`${e.id}_${meses[i]}`))).join("")}${celdaAnual(vals, metasMes)}</tr>`;
     });
     if (eqs.length > 1) {
       const vals = meses.map((m) => promedio(eqs.map((e) => dato[`${e.id}_${m}`]).filter((v) => v !== undefined && v !== null)));
