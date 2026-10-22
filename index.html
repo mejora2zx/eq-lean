@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Captura · Madurez Lean · Zubex</title>
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="stylesheet" href="css/lean.css">
 </head>
 <body>
@@ -30,7 +32,12 @@
 
     <div class="campo">
       <label for="inpAuditor">Auditor</label>
-      <input id="inpAuditor" type="text" autocomplete="name" placeholder="Tu nombre">
+      <select id="inpAuditor">
+        <option value="">Selecciona tu nombre</option>
+        <option>Nayely Abigail Candia Leal</option>
+        <option>Emiliano Joel Calderón Puebla</option>
+        <option>Elizabeth Calderón Palacios</option>
+      </select>
     </div>
     <div class="campo">
       <label for="selEquipo">Equipo</label>
@@ -137,8 +144,10 @@ $("btnSemilla").addEventListener("click", async () => {
 });
 
 // ---------- Selección de equipo ----------
-$("inpAuditor").value = localStorage.getItem("lean_auditor") || "";
-$("inpAuditor").addEventListener("input", validarInicio);
+// Recuerda al último auditor en este dispositivo (solo si sigue en la lista)
+const auditorGuardado = localStorage.getItem("lean_auditor") || "";
+if ([...$("inpAuditor").options].some((o) => o.value === auditorGuardado)) $("inpAuditor").value = auditorGuardado;
+$("inpAuditor").addEventListener("change", validarInicio);
 
 $("selEquipo").addEventListener("change", async () => {
   existente = anterior = null;
@@ -207,7 +216,8 @@ function abrirFormulario() {
   $("panelForm").hidden = false;
   $("pie").hidden = false;
   $("txtEquipo").textContent = auditoria.equipo;
-  $("txtEquipoInfo").textContent = `${auditoria.departamento} · Auditor: ${auditoria.auditor}`;
+  const lider = equipos.find((x) => x.id === auditoria.equipoId)?.lider;
+  $("txtEquipoInfo").textContent = `${auditoria.departamento}${lider ? ` · Líder: ${lider}` : ""} · Auditor: ${auditoria.auditor}`;
 
   // Mapa de 19 puntos
   $("celdas").innerHTML = PUNTOS.map((p) => p.valor
