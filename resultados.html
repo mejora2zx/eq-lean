@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Resultados · Madurez de Equipos Lean · Zubex</title>
+<link rel="icon" type="image/png" href="img/favicon.png?v=2">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=2">
 <link rel="stylesheet" href="css/lean.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -119,7 +121,7 @@
   .solo-no .ev-punto.todo-si { display: none; }
 
   /* Mejor equipo y resumen por departamento */
-  .dos { display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; margin-bottom: 24px; }
+  .dos { display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px; margin-bottom: 24px; align-items: start; }
   .dos .seccion { margin-bottom: 0; }
   .mejor { background: var(--azul); color: #fff; border-color: var(--azul); display: flex; flex-direction: column; }
   .mejor h2 { color: #fff; }
@@ -129,7 +131,8 @@
   .mejor-eq .ico { font-size: 2.4rem; line-height: 1; }
   .mejor-eq .nom { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
   .mejor-eq .det { font-size: .85rem; opacity: .85; }
-  .mejor-eq .cal { margin-left: auto; font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .mejor-eq > div { flex: 1; min-width: 0; }
+  .mejor-eq .cal { margin-left: auto; font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .mejor .vacio { color: #fff; opacity: .8; }
   .mejor { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .tbl-dep td.ok { background: #dcfce7; color: #166534; font-weight: 700; }
@@ -219,12 +222,12 @@
     <div class="graficas">
       <section class="seccion">
         <h2>Tendencia de la calificación promedio</h2>
-        <p class="sub">Últimos 12 meses, solo auditorías cerradas.</p>
+        <p class="sub">Enero a diciembre del año seleccionado. Incluye el historial del Excel y las auditorías cerradas.</p>
         <div class="lienzo"><canvas id="grTendencia" aria-label="Gráfica de tendencia de la calificación promedio"></canvas></div>
       </section>
       <section class="seccion">
         <h2>Promedio por bloque</h2>
-        <p class="sub">Mes anterior contra mes seleccionado.</p>
+        <p class="sub">Mes anterior contra mes seleccionado, en %.</p>
         <div class="lienzo"><canvas id="grBloques" aria-label="Gráfica de promedio por bloque"></canvas></div>
       </section>
     </div>
@@ -234,7 +237,8 @@
   <!-- ===================== EVALUACIÓN ===================== -->
   <div id="vista-evaluacion" hidden>
     <div class="filtros no-imp">
-      <div class="campo"><label for="selEqEv">Equipo</label><select id="selEqEv"></select></div>
+      <div class="campo"><label for="selDepEv">Departamento</label><select id="selDepEv"></select></div>
+      <div class="campo"><label for="selEqEv">Equipo Lean</label><select id="selEqEv"></select></div>
       <div class="campo"><label for="selMesEv">Mes</label><select id="selMesEv"></select></div>
       <label class="check" style="margin:0 0 12px"><input type="checkbox" id="chkSoloNo"><span>Mostrar solo lo que no cumple</span></label>
       <button class="btn" id="btnImpEv" style="margin-bottom:2px">Imprimir</button>
@@ -300,6 +304,14 @@ function mejoresDe(lista) {
   const r = (v) => Math.round(v * 1000);
   const max = Math.max(...validos.map((x) => r(x.cal)));
   return validos.filter((x) => r(x.cal) === max);
+}
+
+// Calificaciones de un mes para todos los equipos: historial del Excel y, encima, auditorías cerradas
+function calificacionesDelMes(m) {
+  const d = {};
+  historial.filter((h) => h.mes === m).forEach((h) => { d[h.equipoId] = h.calificacion; });
+  todasConPausa.filter((a) => a.mes === m && a.estado === "cerrada").forEach((a) => { d[a.equipoId] = a.calificacion; });
+  return Object.values(d).filter((v) => v !== null && v !== undefined);
 }
 
 // Meta del mes para un departamento (fracción 0–1) o null si no hay meta
@@ -438,33 +450,47 @@ function pintarGeneral() {
     </tr>`;
   }).join("") : `<tr><td colspan="9" class="vacio">No hay auditorías cerradas en ${nombreMes(mes)}.</td></tr>`;
 
-  const meses12 = [];
-  for (let m = mes, i = 0; i < 12; i++, m = mesAnterior(m)) meses12.unshift(m);
-  const serie = meses12.map((m) => { const p = promedio(cerradasDe(m).map((a) => a.calificacion)); return p === null ? null : +(p * 100).toFixed(1); });
+  // ---------- Tendencia: enero a diciembre del año del mes seleccionado ----------
+  const anioSel = mes.slice(0, 4);
+  const mesesAnio = MESES_C.map((_, i) => `${anioSel}-${String(i + 1).padStart(2, "0")}`);
+  const serie = mesesAnio.map((m) => { const p = promedio(calificacionesDelMes(m)); return p === null ? null : +(p * 100).toFixed(1); });
+  const serieMeta = mesesAnio.map((m, i) => { const v = metas[anioSel]?.planta?.[i]; return v === null || v === undefined ? null : +(v * 100).toFixed(1); });
   grTend?.destroy();
   grTend = new Chart($("grTendencia"), {
     type: "line",
-    data: { labels: meses12.map(corto), datasets: [{ label: "Calificación promedio (%)", data: serie, borderColor: AZUL, backgroundColor: AZUL, pointRadius: 4, spanGaps: true, tension: 0 }] },
-    options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } } }
-  });
-
-  const promBloque = (lista, id) => { const p = promedio(lista.map((a) => a.bloques?.[id]).filter((v) => v !== null && v !== undefined)); return p === null ? null : +(p * 100).toFixed(1); };
-  grBloq?.destroy();
-  grBloq = new Chart($("grBloques"), {
-    type: "bar",
     data: {
-      labels: BLOQUES.map((b) => b.nombre),
+      labels: mesesAnio.map(corto),
       datasets: [
-        { label: nombreMes(ant), data: BLOQUES.map((b) => promBloque(prev, b.id)), backgroundColor: GRIS },
-        { label: nombreMes(mes), data: BLOQUES.map((b) => promBloque(act, b.id)), backgroundColor: ACENTO }
+        { label: "Calificación promedio (%)", data: serie, borderColor: AZUL, backgroundColor: AZUL, pointRadius: 4, spanGaps: true, tension: 0 },
+        { label: "Meta Planta (%)", data: serieMeta, borderColor: GRIS, backgroundColor: GRIS, borderDash: [6, 4], pointRadius: 0, spanGaps: true, tension: 0 }
       ]
     },
     options: { maintainAspectRatio: false, scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } } }
+  });
+
+  // ---------- Promedio por bloque: gráfica de radar ----------
+  const promBloque = (lista, id) => { const p = promedio(lista.map((a) => a.bloques?.[id]).filter((v) => v !== null && v !== undefined)); return p === null ? null : +(p * 100).toFixed(1); };
+  grBloq?.destroy();
+  grBloq = new Chart($("grBloques"), {
+    type: "radar",
+    data: {
+      labels: BLOQUES.map((b) => b.nombre),
+      datasets: [
+        { label: nombreMes(ant), data: BLOQUES.map((b) => promBloque(prev, b.id)), borderColor: GRIS, backgroundColor: "rgba(148,163,184,0.20)", pointBackgroundColor: GRIS, borderWidth: 2 },
+        { label: nombreMes(mes), data: BLOQUES.map((b) => promBloque(act, b.id)), borderColor: ACENTO, backgroundColor: "rgba(34,126,246,0.25)", pointBackgroundColor: ACENTO, borderWidth: 2 }
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      scales: { r: { min: 0, max: 100, ticks: { stepSize: 20, backdropColor: "transparent" }, pointLabels: { font: { size: 12, weight: "600" } } } }
+    }
   });
 }
 
 // Clic en el ranking → abre la evaluación de ese equipo y mes
 function irAEvaluacion(id) {
+  $("selDepEv").value = equipos[id]?.departamento || "";
+  llenarEquiposEv();
   $("selEqEv").value = id;
   llenarMesesEv();
   $("selMesEv").value = $("selMes").value;
@@ -476,14 +502,20 @@ $("tbRanking").addEventListener("keydown", (e) => { const tr = e.target.closest(
 
 // ===================== EVALUACIÓN =====================
 function prepararEvaluacion() {
-  const lista = activos();
-  const deptos = [...new Set(lista.map((e) => e.departamento))];
-  $("selEqEv").innerHTML = '<option value="">Selecciona tu equipo</option>' + deptos.map((d) =>
-    `<optgroup label="${esc(d)}">${lista.filter((e) => e.departamento === d).map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("")}</optgroup>`).join("");
+  const deptos = [...new Set(activos().map((e) => e.departamento))].sort((a, b) => a.localeCompare(b, "es"));
+  $("selDepEv").innerHTML = '<option value="">Todos</option>' + deptos.map((d) => `<option>${esc(d)}</option>`).join("");
+  llenarEquiposEv();
+  $("selDepEv").addEventListener("change", () => { llenarEquiposEv(); llenarMesesEv(); pintarEvaluacion(); });
   $("selEqEv").addEventListener("change", () => { llenarMesesEv(); pintarEvaluacion(); });
   $("selMesEv").addEventListener("change", pintarEvaluacion);
   $("chkSoloNo").addEventListener("change", () => $("evContenido").classList.toggle("solo-no", $("chkSoloNo").checked));
   $("btnImpEv").addEventListener("click", () => window.print());
+}
+
+function llenarEquiposEv() {
+  const dep = $("selDepEv").value;
+  const lista = activos().filter((e) => !dep || e.departamento === dep).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  $("selEqEv").innerHTML = '<option value="">Selecciona tu equipo</option>' + lista.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("");
 }
 
 // Solo meses con auditoría terminada (pendiente o cerrada); las que están en captura no se muestran
