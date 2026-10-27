@@ -18,6 +18,19 @@
 
 <main class="contenedor">
 
+  <!-- Acceso con contraseña -->
+  <section class="panel" id="panelAcceso" hidden style="max-width:400px;margin:40px auto">
+    <h2>Acceso a la captura</h2>
+    <p class="sub">Solo para los auditores de equipos Lean.</p>
+    <div class="campo">
+      <label for="inpPassCap">Contraseña</label>
+      <input id="inpPassCap" type="password" autocomplete="current-password">
+    </div>
+    <label class="check"><input type="checkbox" id="chkRecordar" checked><span>Recordar en este dispositivo</span></label>
+    <p class="aviso error" id="errPassCap" hidden>Contraseña incorrecta.</p>
+    <button class="btn" id="btnEntrarCap">Entrar</button>
+  </section>
+
   <!-- Carga inicial de equipos (solo aparece si la base está vacía) -->
   <section class="panel" id="panelSemilla" hidden>
     <h2>Aún no hay equipos registrados</h2>
@@ -404,12 +417,41 @@ function mostrarResumen() {
   if ($("btnEditar")) $("btnEditar").onclick = abrirFormulario;
 }
 
+// ---------- Acceso ----------
+// Contraseña guardada como huella SHA-256 (no como texto).
+// Es un candado básico para evitar capturas de personas ajenas, no una protección fuerte.
+const HUELLA_CAPTURA = "5796064852e48b847478a3a173199907e6aa07c0fc1beb079ced308c4a736ffd";
+
+async function huella(texto) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function arrancar() {
+  $("panelAcceso").hidden = true;
+  cargarEquipos().catch((err) => {
+    console.error(err);
+    document.querySelector(".contenedor").insertAdjacentHTML("afterbegin",
+      '<p class="aviso error">No se pudo conectar con la base de datos. Revisa tu conexión y que las reglas de Firestore estén publicadas.</p>');
+  });
+}
+
+async function entrarCaptura() {
+  if (await huella($("inpPassCap").value) !== HUELLA_CAPTURA) { $("errPassCap").hidden = false; return; }
+  // Se guarda la huella (no la contraseña); si la contraseña cambia, se vuelve a pedir
+  (($("chkRecordar").checked) ? localStorage : sessionStorage).setItem("lean_captura", HUELLA_CAPTURA);
+  arrancar();
+}
+$("btnEntrarCap").addEventListener("click", entrarCaptura);
+$("inpPassCap").addEventListener("keydown", (e) => { if (e.key === "Enter") entrarCaptura(); });
+
 // ---------- Arranque ----------
-cargarEquipos().catch((err) => {
-  console.error(err);
-  document.querySelector(".contenedor").insertAdjacentHTML("afterbegin",
-    '<p class="aviso error">No se pudo conectar con la base de datos. Revisa tu conexión y que las reglas de Firestore estén publicadas.</p>');
-});
+if (localStorage.getItem("lean_captura") === HUELLA_CAPTURA || sessionStorage.getItem("lean_captura") === HUELLA_CAPTURA) {
+  arrancar();
+} else {
+  $("panelAcceso").hidden = false;
+  $("inpPassCap").focus();
+}
 </script>
 </body>
 </html>
