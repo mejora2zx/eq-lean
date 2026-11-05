@@ -47,7 +47,7 @@ export function calcular(respuestas = {}, resultados = {}) {
   let certificado = null;
   if (listo) {
     certificado = Object.entries(CERTIFICACION).every(([n, [op, min]]) =>
-      op === ">" ? puntos[n] > min : puntos[n] >= min);
+      op === ">" ? entero(puntos[n]) > entero(min) : entero(puntos[n]) >= entero(min));
   }
 
   return { puntos, bloques, calificacion, certificado };
@@ -56,8 +56,13 @@ export function calcular(respuestas = {}, resultados = {}) {
 // Puntos que no alcanzan su mínimo de certificación (sirve para explicar un "No certificado")
 export function puntosBajoMinimo(puntos) {
   return Object.entries(CERTIFICACION)
-    .filter(([n, [op, min]]) => puntos[n] !== null && !(op === ">" ? puntos[n] > min : puntos[n] >= min))
+    .filter(([n, [op, min]]) => puntos[n] !== null && !(op === ">" ? entero(puntos[n]) > entero(min) : entero(puntos[n]) >= entero(min)))
     .map(([n]) => Number(n));
 }
 
-export const pct = (v, dec = 1) => (v === null || v === undefined) ? "—" : (v * 100).toFixed(dec).replace(/\.0+$/, "") + " %";
+// Las calificaciones se muestran y se comparan redondeadas a entero (como se manejan en Zubex).
+// Los valores se guardan completos; solo se redondea al mostrar y al comparar.
+export const entero = (v) => Math.round(v * 100);
+export const alcanza = (v, min) => entero(v) >= entero(min);
+export const pct = (v, dec = 0) => (v === null || v === undefined) ? "—"
+  : (dec === 0 ? String(entero(v)) : (v * 100).toFixed(dec).replace(/\.0+$/, "")) + " %";
