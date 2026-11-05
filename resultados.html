@@ -271,7 +271,7 @@
 import { db } from "./js/firebase-config.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { PUNTOS, BLOQUES, CERTIFICACION } from "./js/catalogo.js";
-import { calcular, puntosBajoMinimo, pct } from "./js/calculo.js";
+import { calcular, puntosBajoMinimo, pct, entero, alcanza } from "./js/calculo.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -301,7 +301,7 @@ let metas = {};         // año -> { planta: [12], excepciones: { depto: [12] } 
 function mejoresDe(lista) {
   const validos = lista.filter((x) => x.cal !== null && x.cal !== undefined);
   if (!validos.length) return [];
-  const r = (v) => Math.round(v * 1000);
+  const r = (v) => entero(v);
   const max = Math.max(...validos.map((x) => r(x.cal)));
   return validos.filter((x) => r(x.cal) === max);
 }
@@ -399,11 +399,11 @@ function pintarGeneral() {
   const certAnt = prev.length ? prev.filter((a) => a.certificado).length : null;
   const opAct = act.length ? act.reduce((s, a) => s + totalN(a), 0) : null;
   const opAnt = prev.length ? prev.reduce((s, a) => s + totalN(a), 0) : null;
-  const fPct = (v, abs) => abs ? (v * 100).toFixed(1) + " pts" : pct(v);
+  const fPct = (v, abs) => abs ? (v * 100).toFixed(1) + " pts" : pct(v, 1);
   const fNum = (v) => String(v);
 
   $("kpis").innerHTML = `
-    <div class="kpi"><div class="t">Calificación promedio</div><div class="v">${pct(calAct)}</div>${delta(calAct, calAnt, "sube", fPct)}</div>
+    <div class="kpi"><div class="t">Calificación promedio</div><div class="v">${pct(calAct, 1)}</div>${delta(calAct, calAnt, "sube", fPct)}</div>
     <div class="kpi"><div class="t">Equipos certificados</div><div class="v">${certAct ?? "—"}<span style="font-size:1rem;font-weight:400;color:var(--gris)"> de ${act.length}</span></div>${delta(certAct, certAnt, "sube", fNum)}</div>
     <div class="kpi"><div class="t">Áreas de oportunidad</div><div class="v">${opAct ?? "—"}</div>${delta(opAct, opAnt, "baja", fNum)}</div>
     <div class="kpi"><div class="t">Avance del mes</div><div class="v">${act.length}<span style="font-size:1rem;font-weight:400;color:var(--gris)"> de ${activos().length}</span></div><div class="d"><span class="neutral">${pendientes} en captura o pendientes de resultados</span></div></div>`;
@@ -431,15 +431,15 @@ function pintarGeneral() {
     return { d, n: ids.length, ev: cals.length, prom: promedio(cals), meta: metaDe(d, mes) };
   }).sort((a, b) => b.n - a.n || a.d.localeCompare(b.d, "es"));
   $("tbDeptos").innerHTML = filasDep.map((f) => {
-    const clase = f.prom === null || f.meta === null ? "" : Math.round(f.prom * 1000) >= Math.round(f.meta * 1000) ? "ok" : "bajo";
+    const clase = f.prom === null || f.meta === null ? "" : alcanza(f.prom, f.meta) ? "ok" : "bajo";
     return `<tr><td>${esc(f.d)}</td><td class="n">${f.n}</td><td class="n">${f.ev}</td>
-      <td class="n ${clase}" ${f.meta !== null ? `title="Meta: ${pct(f.meta)}"` : ""}>${pct(f.prom)}</td></tr>`;
+      <td class="n ${clase}" ${f.meta !== null ? `title="Meta: ${pct(f.meta)}"` : ""}>${pct(f.prom, 1)}</td></tr>`;
   }).join("");
 
   $("tbRanking").innerHTML = orden.length ? orden.map((a, i) => {
-    const d = califAnt[a.equipoId] !== undefined ? a.calificacion - califAnt[a.equipoId] : null;
+    const d = califAnt[a.equipoId] !== undefined ? entero(a.calificacion) - entero(califAnt[a.equipoId]) : null;
     const dTxt = d === null ? '<span style="color:var(--gris)">—</span>'
-      : `<span class="${d > 0 ? "mejora" : d < 0 ? "deterioro" : "neutral"}">${d > 0 ? "▲" : d < 0 ? "▼" : "="} ${(Math.abs(d) * 100).toFixed(1)}</span>`;
+      : `<span class="${d > 0 ? "mejora" : d < 0 ? "deterioro" : "neutral"}">${d > 0 ? "▲" : d < 0 ? "▼" : "="} ${Math.abs(d)}</span>`;
     return `<tr class="clic" data-eq="${a.equipoId}" tabindex="0">
       <td class="pos">${i + 1}</td>
       <td><div class="eq">${esc(a.equipo)}</div><div class="dep">${esc(a.departamento)}${equipos[a.equipoId]?.lider ? ` · ${esc(equipos[a.equipoId].lider)}` : ""}</div></td>
@@ -584,8 +584,8 @@ function pintarEvaluacion() {
       const meta = metaDe(e.departamento, a.mes);
       if (meta === null) return "";
       if (calc.calificacion === null) return `<p class="sub">Meta del mes: <b>${pct(meta)}</b></p>`;
-      const ok = Math.round(calc.calificacion * 1000) >= Math.round(meta * 1000);
-      return `<p class="sub">Meta del mes: <b>${pct(meta)}</b> · <b class="${ok ? "mejora" : "deterioro"}">${ok ? "Meta alcanzada" : `Faltan ${((meta - calc.calificacion) * 100).toFixed(1)} pts para la meta`}</b></p>`;
+      const ok = alcanza(calc.calificacion, meta);
+      return `<p class="sub">Meta del mes: <b>${pct(meta)}</b> · <b class="${ok ? "mejora" : "deterioro"}">${ok ? "Meta alcanzada" : `Faltan ${entero(meta) - entero(calc.calificacion)} pts para la meta`}</b></p>`;
     })()}
     <p class="sub"><b style="color:var(--verde)">${nSi} criterios cumplen</b> · <b style="color:var(--naranja)">${nNo} no cumplen</b> de ${nSi + nNo} evaluados.</p>
     ${BLOQUES.map((b) => `<h3 class="bloque-h">${b.nombre}</h3>${b.puntos.map((n) => htmlPunto(PUNTOS.find((p) => p.n === n))).join("")}`).join("")}`;
@@ -624,7 +624,7 @@ function llenarEquiposRes() {
   $("selEqRes").innerHTML = '<option value="">Todos</option>' + lista.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("");
 }
 
-const cumple = (cal, meta) => Math.round(cal * 1000) >= Math.round(meta * 1000);
+const cumple = (cal, meta) => alcanza(cal, meta);
 const num = (v, dec = 0) => v === null || v === undefined ? "—" : (v * 100).toFixed(dec).replace(/\.0+$/, "");
 
 function pintarResumen() {
