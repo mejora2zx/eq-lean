@@ -109,7 +109,9 @@
         </div>
         <p class="muted" style="margin:0 0 6px">Captura los 3 valores en %, guarda y cierra. Una auditoría cerrada ya no se puede modificar.</p>
       </div>
+      <div class="aviso" id="panelOctubre" hidden></div>
       <div class="conteo" id="conteo"></div>
+      <div style="margin-bottom:14px"><button class="btn sec" id="btnCerrarTodas" hidden>Cerrar todas las completas</button></div>
       <table class="tabla">
         <thead>
           <tr>
@@ -161,6 +163,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { calcular, puntosBajoMinimo, pct } from "./js/calculo.js";
 import { HISTORIAL, METAS_2026 } from "./js/historial.js";
+import { AUDITORIAS_OCTUBRE } from "./js/octubre.js";
+import { VERSION_CATALOGO } from "./js/catalogo.js";
 
 // Contraseña guardada como huella SHA-256 (no como texto).
 // Es un candado básico para evitar cambios accidentales, no una protección fuerte.
@@ -303,6 +307,20 @@ function pintarAuditorias() {
   }).join("") || '<tr><td colspan="8" class="muted">No hay equipos activos.</td></tr>';
 
   lista.forEach((e) => { if (auditorias[e.id]) vistaPrevia(e.id); });
+
+  // Botón para cerrar de un clic las pendientes que ya tienen los 3 valores
+  const completas = Object.values(auditorias).filter((a) => a.estado === "pendiente" && CAMPOS.every((c) => a.resultados?.[c] !== null && a.resultados?.[c] !== undefined));
+  $("btnCerrarTodas").hidden = !completas.length;
+  $("btnCerrarTodas").textContent = `Cerrar todas las completas (${completas.length})`;
+
+  // Aviso de importación de octubre (solo si no hay ninguna auditoría de octubre)
+  const p = $("panelOctubre");
+  if ($("selMes").value === "2026-10" && !Object.keys(auditorias).length) {
+    p.hidden = false;
+    p.innerHTML = `<strong>Auditorías de octubre sin importar.</strong> Carga las ${AUDITORIAS_OCTUBRE.length} auditorías del Excel de octubre (respuestas, evidencias, áreas de oportunidad y resultados). Entran como pendientes de resultados para que las revises y las cierres. Solo se hace una vez.
+      <div style="margin-top:10px"><button class="btn" id="btnImportarOct">Importar auditorías de octubre</button></div>`;
+    $("btnImportarOct").onclick = importarOctubre;
+  } else p.hidden = true;
 }
 
 // Lee los 3 valores de la fila (en fracción 0–1). Devuelve null en los vacíos y marca los inválidos.
@@ -434,6 +452,68 @@ $("btnAgregar").addEventListener("click", async () => {
   } catch (err) {
     console.error(err);
     alert("No se pudo agregar el equipo.");
+  }
+});
+
+// ---------- Importación de octubre ----------
+async function importarOctubre() {
+  if (!confirm(`Se importarán ${AUDITORIAS_OCTUBRE.length} auditorías de octubre. ¿Continuar?`)) return;
+  $("btnImportarOct").disabled = true;
+  $("btnImportarOct").textContent = "Importando…";
+  try {
+    const lote = writeBatch(db);
+    AUDITORIAS_OCTUBRE.forEach((a) => {
+      const calc = calcular(a.respuestas, a.resultados);
+      lote.set(doc(db, "lean_auditorias", `${a.mes}_${a.equipoId}`), {
+        ...a,
+        auditor: "Importado de Excel",
+        version: VERSION_CATALOGO,
+        estado: "pendiente",
+        precargadoDe: null,
+        puntos: calc.puntos,
+        bloques: calc.bloques,
+        calificacion: calc.calificacion,
+        certificado: calc.certificado,
+        importado: true,
+        creado: serverTimestamp(),
+        actualizado: serverTimestamp()
+      });
+    });
+    await lote.commit();
+    avisar(`${AUDITORIAS_OCTUBRE.length} auditorías de octubre importadas`);
+    await cargarAuditorias();
+  } catch (err) {
+    console.error(err);
+    alert("No se pudieron importar. Revisa que hayas borrado las auditorías de prueba de octubre.");
+    $("btnImportarOct").disabled = false;
+    $("btnImportarOct").textContent = "Importar auditorías de octubre";
+  }
+}
+
+$("btnCerrarTodas").addEventListener("click", async () => {
+  const completas = Object.values(auditorias).filter((a) => a.estado === "pendiente" && CAMPOS.every((c) => a.resultados?.[c] !== null && a.resultados?.[c] !== undefined));
+  if (!completas.length) return;
+  if (!confirm(`Se cerrarán ${completas.length} auditorías con sus 3 valores capturados. Ya no se podrán modificar. ¿Continuar?`)) return;
+  $("btnCerrarTodas").disabled = true;
+  try {
+    const lote = writeBatch(db);
+    const hoy = new Date().toISOString().slice(0, 10);
+    completas.forEach((a) => {
+      const calc = calcular(a.respuestas, a.resultados);
+      lote.update(doc(db, "lean_auditorias", `${a.mes}_${a.equipoId}`), {
+        estado: "cerrada", fechaCierre: hoy,
+        puntos: calc.puntos, bloques: calc.bloques, calificacion: calc.calificacion, certificado: calc.certificado,
+        actualizado: serverTimestamp()
+      });
+    });
+    await lote.commit();
+    avisar(`${completas.length} auditorías cerradas`);
+    await cargarAuditorias();
+  } catch (err) {
+    console.error(err);
+    alert("No se pudieron cerrar. Revisa tu conexión.");
+  } finally {
+    $("btnCerrarTodas").disabled = false;
   }
 });
 
