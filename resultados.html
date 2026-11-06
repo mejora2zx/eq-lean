@@ -271,7 +271,7 @@
 import { db } from "./js/firebase-config.js";
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { PUNTOS, BLOQUES, CERTIFICACION } from "./js/catalogo.js";
-import { calcular, puntosBajoMinimo, pct, entero, alcanza } from "./js/calculo.js";
+import { calcular, preCalificacion, puntosBajoMinimo, pct, entero, alcanza } from "./js/calculo.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -576,9 +576,10 @@ function pintarEvaluacion() {
       </div>
     </div>
     <p>${estadoCert}</p>
+    ${a.ajustes?.length ? `<div class="sub" style="margin-bottom:12px"><b>Ajustes después de la evaluación:</b>${a.ajustes.map((x) => `<div>· ${esc(x.fecha)}: ${esc(x.motivo)}${x.calificacionAnterior !== null && x.calificacionAnterior !== undefined && x.calificacionNueva !== null ? ` (${pct(x.calificacionAnterior)} → ${pct(x.calificacionNueva)})` : ""}</div>`).join("")}</div>` : ""}
     <div class="detalle-bloques">
       ${BLOQUES.map((b) => `<div><span>${b.nombre}</span><strong>${calc.bloques[b.id] === null ? "Pendiente" : pct(calc.bloques[b.id])}</strong></div>`).join("")}
-      <div class="final"><span>Calificación final</span><strong>${calc.calificacion === null ? "Pendiente" : pct(calc.calificacion)}</strong></div>
+      <div class="final"><span>${calc.calificacion === null ? "Pre-calificación" : "Calificación final"}</span><strong>${calc.calificacion === null ? "≈ " + pct(preCalificacion(a.respuestas, a.resultados).calificacion) : pct(calc.calificacion)}</strong></div>
     </div>
     ${(() => {
       const meta = metaDe(e.departamento, a.mes);
