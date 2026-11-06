@@ -53,6 +53,18 @@ export function calcular(respuestas = {}, resultados = {}) {
   return { puntos, bloques, calificacion, certificado };
 }
 
+// Pre-calificación: aproximado con los datos disponibles antes de cerrar.
+// El bloque Resultados promedia solo los puntos que ya tienen dato (16 y los de 17–19 capturados).
+// Los criterios sin contestar cuentan como 0.
+export function preCalificacion(respuestas = {}, resultados = {}) {
+  const puntos = {};
+  PUNTOS.forEach(p => { puntos[p.n] = calificarPunto(p, respuestas, resultados); });
+  const bloques = {};
+  BLOQUES.forEach(b => { bloques[b.id] = promedio(b.puntos.map(n => puntos[n]).filter(v => v !== null)); });
+  const faltan = PUNTOS.filter(p => p.valor && puntos[p.n] === null).map(p => p.n);
+  return { puntos, bloques, calificacion: promedio(Object.values(bloques).filter(v => v !== null)), faltan };
+}
+
 // Puntos que no alcanzan su mínimo de certificación (sirve para explicar un "No certificado")
 export function puntosBajoMinimo(puntos) {
   return Object.entries(CERTIFICACION)

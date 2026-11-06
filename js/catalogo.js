@@ -34,6 +34,10 @@ export const CERTIFICACION = {
   19: [">=", 0.70]
 };
 
+// Valores en % que el auditor captura durante la evaluación (18 ahorros y 19 examen).
+// El 17 (desempeño contra metas) se captura después en Administración.
+export const VALORES_EN_CAPTURA = ["ahorro", "examen"];
+
 // Puntos 1–16 se evalúan con y/n. Puntos 17–19 son valores en % que se capturan en Administración.
 export const PUNTOS = [
   {
