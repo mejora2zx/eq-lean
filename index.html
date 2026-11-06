@@ -7,6 +7,20 @@
 <link rel="icon" type="image/png" href="img/favicon.png?v=2">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png?v=2">
 <link rel="stylesheet" href="css/lean.css">
+<style>
+  .precal { font-weight: 700; color: var(--azul); background: var(--azul-claro); padding: 4px 12px; border-radius: 99px; font-size: .95rem; white-space: nowrap; }
+  .precal small { font-weight: 500; color: var(--gris); }
+  .valor-cap { padding: 0 18px 14px 58px; }
+  .valor-cap p { margin: 0 0 8px; color: var(--gris); font-size: .9rem; }
+  .valor-cap label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .valor-cap input { width: 110px; padding: 10px 12px; border: 1.5px solid var(--linea); border-radius: 8px; text-align: right; min-height: 46px; font-size: 1.05rem; }
+  .valor-cap input:focus { outline: none; border-color: var(--azul); }
+  .valor-cap input.invalido { border-color: var(--naranja); background: var(--naranja-claro); }
+  .modo-edicion { background: #fff7ed; border: 1.5px solid #fdba74; border-radius: 10px; padding: 14px 16px; margin: 12px 0 4px; }
+  .modo-edicion strong { color: #9a3412; }
+  .modo-edicion textarea { width: 100%; margin-top: 8px; min-height: 52px; padding: 10px 12px; border: 1.5px solid var(--linea); border-radius: 8px; }
+  @media (max-width: 640px) { .valor-cap { padding-left: 18px; } }
+</style>
 </head>
 <body>
 
@@ -68,7 +82,9 @@
       <div class="mapa-equipo">
         <strong id="txtEquipo"></strong>
         <span id="txtEquipoInfo"></span>
+        <span class="precal" id="txtPreCal" title="Aproximado con lo capturado; el punto 17 se agrega al cerrar"></span>
       </div>
+      <div id="bannerEdicion"></div>
       <div class="celdas" id="celdas"></div>
       <div class="bloque-etqs">
         <span>Educación y Cultura</span><span>Solución de Problemas</span><span>Mejora Continua</span><span>Resultados</span>
@@ -96,10 +112,10 @@
 <script type="module">
 import { db } from "./js/firebase-config.js";
 import {
-  collection, getDocs, getDoc, setDoc, doc, query, where, writeBatch, serverTimestamp
+  collection, getDocs, getDoc, setDoc, doc, query, where, writeBatch, serverTimestamp, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { PUNTOS, BLOQUES, CERTIFICACION, EQUIPOS_INICIALES, VERSION_CATALOGO } from "./js/catalogo.js";
-import { calcular, faltantes, pct, puntosBajoMinimo } from "./js/calculo.js";
+import { PUNTOS, BLOQUES, CERTIFICACION, EQUIPOS_INICIALES, VERSION_CATALOGO, VALORES_EN_CAPTURA } from "./js/catalogo.js";
+import { calcular, preCalificacion, faltantes, pct, puntosBajoMinimo } from "./js/calculo.js";
 
 // ---------- Utilidades ----------
 const $ = (id) => document.getElementById(id);
@@ -122,6 +138,10 @@ let existente = null;        // auditoría de este mes ya guardada
 let anterior = null;         // auditoría más reciente de meses anteriores
 let soloLectura = false;
 let temporizador = null;
+// Modo edición desde Administración: index.html?editar=AAAA-MM_equipo
+const ID_EDITAR = new URLSearchParams(location.search).get("editar");
+const modoEdicion = !!ID_EDITAR;
+const valorEditable = (valor) => modoEdicion || VALORES_EN_CAPTURA.includes(valor);
 
 // ---------- Equipos ----------
 async function cargarEquipos() {
@@ -233,7 +253,7 @@ function abrirFormulario() {
   $("txtEquipoInfo").textContent = `${auditoria.departamento}${lider ? ` · Líder: ${lider}` : ""} · Auditor: ${auditoria.auditor}`;
 
   // Mapa de 19 puntos
-  $("celdas").innerHTML = PUNTOS.map((p) => p.valor
+  $("celdas").innerHTML = PUNTOS.map((p) => p.valor && !valorEditable(p.valor)
     ? `<div class="celda pendiente" title="Punto ${p.n}: se captura en Administración"><b>${p.n}</b></div>`
     : `<button class="celda" id="celda-${p.n}" data-ir="${p.n}" title="Punto ${p.n}: ${esc(p.titulo)}"><span class="relleno"></span><b>${p.n}</b></button>`
   ).join("");
@@ -250,6 +270,17 @@ function abrirFormulario() {
 
 function htmlPunto(p) {
   const min = CERTIFICACION[p.n] ? `<span class="punto-min">Mínimo para certificar: ${CERTIFICACION[p.n][0] === ">" ? "más de " : ""}${CERTIFICACION[p.n][1] * 100} %</span>` : "";
+  if (p.valor && valorEditable(p.valor)) {
+    const v = auditoria.resultados?.[p.valor];
+    return `
+      <article class="punto" id="punto-${p.n}">
+        <div class="punto-cab"><span class="punto-num">${p.n}</span><h3>${esc(p.titulo)}<br>${min}</h3><span class="punto-cal" id="cal-${p.n}"></span></div>
+        <div class="valor-cap"><p>${esc(p.descripcion)}</p>
+          <label>Resultado <input type="number" inputmode="decimal" min="0" max="100" step="0.01" class="inp-valor" data-valor="${p.valor}"
+            value="${v === null || v === undefined ? "" : +(v * 100).toFixed(2)}" aria-label="${esc(p.titulo)} en %"> %</label>
+        </div>
+      </article>`;
+  }
   if (p.valor) {
     const v = auditoria.resultados?.[p.valor];
     return `
@@ -300,6 +331,15 @@ $("formPuntos").addEventListener("click", (e) => {
 
 // Comentarios
 $("formPuntos").addEventListener("input", (e) => {
+  if (e.target.classList.contains("inp-valor")) {
+    const t = e.target.value.trim(), n = Number(t);
+    const ok = t === "" || (!isNaN(n) && n >= 0 && n <= 100);
+    e.target.classList.toggle("invalido", !ok);
+    auditoria.resultados = { ...(auditoria.resultados || {}), [e.target.dataset.valor]: t === "" || !ok ? null : n / 100 };
+    refrescar();
+    programarGuardado();
+    return;
+  }
   if (e.target.tagName !== "TEXTAREA") return;
   const id = e.target.closest(".criterio").dataset.id;
   auditoria.respuestas[id] = { ...(auditoria.respuestas[id] || {}), t: e.target.value };
@@ -323,10 +363,24 @@ function refrescar() {
     celda.classList.toggle("con-n", conN);
     $("cal-" + p.n).textContent = contestados ? pct(calc.puntos[p.n]) : "";
   });
+  PUNTOS.filter((p) => p.valor && valorEditable(p.valor)).forEach((p) => {
+    const v = calc.puntos[p.n];
+    $("celda-" + p.n).querySelector(".relleno").style.height = v === null ? "0%" : "100%";
+    $("celda-" + p.n).classList.toggle("completa", v !== null);
+    $("cal-" + p.n).textContent = v === null ? "" : pct(v);
+  });
+  const pre = preCalificacion(auditoria.respuestas, auditoria.resultados);
+  $("txtPreCal").innerHTML = `Pre-calificación ≈ ${pct(pre.calificacion)}${pre.faltan.length ? ` <small>sin punto ${pre.faltan.join(", ")}</small>` : ""}`;
+
   const falta = faltantes(auditoria.respuestas).length;
   const hechos = TOTAL_YN - falta;
   $("txtProgreso").textContent = falta ? `${hechos} de ${TOTAL_YN} criterios contestados` : "Todos los criterios contestados";
   $("barraProgreso").style.width = (hechos / TOTAL_YN * 100) + "%";
+  if (modoEdicion) {
+    $("btnTerminar").disabled = falta > 0 || !($("inpMotivo")?.value.trim());
+    $("btnTerminar").textContent = "Guardar ajustes";
+    return;
+  }
   $("btnTerminar").disabled = falta > 0;
   $("btnTerminar").textContent = auditoria.estado === "pendiente" ? "Guardar cambios" : "Terminar auditoría";
 }
@@ -334,6 +388,7 @@ function refrescar() {
 // ---------- Guardado ----------
 function programarGuardado() {
   $("txtGuardado").textContent = "Cambios sin guardar";
+  if (modoEdicion) return; // en edición se guarda solo con "Guardar ajustes"
   clearTimeout(temporizador);
   temporizador = setTimeout(guardar, 1500);
 }
@@ -342,9 +397,10 @@ async function guardar() {
   clearTimeout(temporizador);
   const calc = calcular(auditoria.respuestas, auditoria.resultados);
   const id = `${auditoria.mes}_${auditoria.equipoId}`;
+  const { creado, actualizado, ...base } = auditoria;
   const datos = {
-    ...auditoria,
-    fecha: FECHA_HOY,
+    ...base,
+    fecha: modoEdicion ? auditoria.fecha : FECHA_HOY,
     puntos: calc.puntos,
     bloques: calc.bloques,
     calificacion: calc.calificacion,
@@ -368,11 +424,18 @@ async function guardar() {
 
 $("btnTerminar").addEventListener("click", async () => {
   if (faltantes(auditoria.respuestas).length) return;
+  if (modoEdicion) { guardarAjustes(); return; }
   auditoria.estado = "pendiente";
   if (await guardar()) mostrarResumen();
 });
 
 $("btnCambiar").addEventListener("click", async () => {
+  if (modoEdicion) {
+    if ($("txtGuardado").textContent === "Cambios sin guardar" && !confirm("¿Salir sin guardar los ajustes?")) return;
+    $("txtGuardado").textContent = "";
+    location.href = "admin.html";
+    return;
+  }
   if (temporizador) await guardar();
   location.reload();
 });
@@ -405,7 +468,11 @@ function mostrarResumen() {
 
     ${auditoria.estado === "cerrada"
       ? `<p><strong>Calificación final: ${pct(calc.calificacion)}</strong> · ${calc.certificado ? "Certificado" : `No certificado (no alcanza el mínimo en el punto ${puntosBajoMinimo(calc.puntos).join(", ")})`}</p>`
-      : `<p class="aviso">Faltan desempeño contra metas, ahorros y examen. La calificación final y la certificación se calculan cuando se capturen en Administración.</p>`}
+      : (() => {
+          const pre = preCalificacion(auditoria.respuestas, auditoria.resultados);
+          return `<p><strong>Pre-calificación ≈ ${pct(pre.calificacion)}</strong>${pre.faltan.length ? ` (sin punto ${pre.faltan.join(", ")})` : ""}</p>
+            <p class="aviso">${pre.faltan.includes(17) ? "Falta el desempeño contra metas (punto 17). " : ""}La calificación final y la certificación se calculan al cerrar la auditoría en Administración.</p>`;
+        })()}
 
     <p>${totalN ? `${totalN} área${totalN === 1 ? "" : "s"} de oportunidad registrada${totalN === 1 ? "" : "s"}.` : "Sin áreas de oportunidad."}</p>
 
@@ -415,6 +482,59 @@ function mostrarResumen() {
     </div>`;
   $("btnOtra").onclick = () => location.reload();
   if ($("btnEditar")) $("btnEditar").onclick = abrirFormulario;
+}
+
+// ---------- Edición desde Administración ----------
+async function abrirEdicion() {
+  const [snapA, snapE] = await Promise.all([getDoc(doc(db, "lean_auditorias", ID_EDITAR)), getDocs(collection(db, "lean_equipos"))]);
+  equipos = snapE.docs.map((d) => ({ id: d.id, ...d.data() }));
+  if (!snapA.exists()) {
+    document.querySelector(".contenedor").innerHTML = '<p class="aviso error">No se encontró la auditoría. <a href="admin.html">Volver a Administración</a></p>';
+    return;
+  }
+  existente = snapA.data();
+  auditoria = structuredClone(existente);
+  auditoria.resultados = auditoria.resultados || { desempeno: null, ahorro: null, examen: null };
+  abrirFormulario();
+  $("btnCambiar").textContent = "Cancelar";
+  $("bannerEdicion").innerHTML = `
+    <div class="modo-edicion">
+      <strong>Editando desde Administración</strong> · ${nombreMes(auditoria.mes)} ·
+      <span class="estado-chip ${auditoria.estado}">${{ borrador: "En captura", pendiente: "Pendiente de resultados", cerrada: "Cerrada" }[auditoria.estado]}</span>
+      <div style="margin-top:6px;color:var(--gris);font-size:.9rem">Los cambios se guardan solo al dar clic en “Guardar ajustes”. Si la auditoría está cerrada, sigue cerrada y su calificación se recalcula.</div>
+      <label for="inpMotivo" style="display:block;margin-top:10px;font-weight:600">Motivo del ajuste (obligatorio)</label>
+      <textarea id="inpMotivo" placeholder="Ej. El equipo entregó evidencia del punto 9 después de la evaluación"></textarea>
+    </div>`;
+  $("inpMotivo").addEventListener("input", refrescar);
+  refrescar();
+}
+
+async function guardarAjustes() {
+  const motivo = $("inpMotivo").value.trim();
+  if (!motivo) return;
+  const calc = calcular(auditoria.respuestas, auditoria.resultados);
+  $("btnTerminar").disabled = true;
+  $("txtGuardado").textContent = "Guardando…";
+  try {
+    const { creado, actualizado, ajustes, ...base } = auditoria;
+    await setDoc(doc(db, "lean_auditorias", ID_EDITAR), {
+      ...base,
+      puntos: calc.puntos,
+      bloques: calc.bloques,
+      calificacion: calc.calificacion,
+      certificado: calc.certificado,
+      ajustes: arrayUnion({ fecha: new Date().toISOString().slice(0, 10), motivo, calificacionAnterior: existente.calificacion ?? null, calificacionNueva: calc.calificacion }),
+      actualizado: serverTimestamp()
+    }, { merge: true });
+    $("txtGuardado").textContent = "";
+    alert(`Ajuste guardado.${calc.calificacion !== null ? `\nCalificación: ${pct(existente.calificacion)} → ${pct(calc.calificacion)}` : ""}`);
+    location.href = "admin.html";
+  } catch (err) {
+    console.error(err);
+    $("txtGuardado").textContent = "Error al guardar";
+    alert("No se pudo guardar el ajuste. Revisa que las reglas nuevas de Firestore estén publicadas.");
+    $("btnTerminar").disabled = false;
+  }
 }
 
 // ---------- Acceso ----------
@@ -429,7 +549,7 @@ async function huella(texto) {
 
 function arrancar() {
   $("panelAcceso").hidden = true;
-  cargarEquipos().catch((err) => {
+  (modoEdicion ? abrirEdicion() : cargarEquipos()).catch((err) => {
     console.error(err);
     document.querySelector(".contenedor").insertAdjacentHTML("afterbegin",
       '<p class="aviso error">No se pudo conectar con la base de datos. Revisa tu conexión y que las reglas de Firestore estén publicadas.</p>');
