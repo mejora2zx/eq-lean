@@ -107,7 +107,7 @@
           <label for="selMes">Mes</label>
           <select id="selMes"></select>
         </div>
-        <p class="muted" style="margin:0 0 6px">Captura los 3 valores en %, guarda y cierra. Una auditoría cerrada ya no se puede modificar.</p>
+        <p class="muted" style="margin:0 0 6px">Captura los valores en %, guarda y cierra. Con <b>Editar</b> puedes ajustar respuestas y comentarios, incluso de una auditoría cerrada.</p>
       </div>
       <div class="aviso" id="panelOctubre" hidden></div>
       <div class="conteo" id="conteo"></div>
@@ -161,7 +161,7 @@ import { db } from "./js/firebase-config.js";
 import {
   collection, getDocs, getDoc, doc, setDoc, updateDoc, query, where, serverTimestamp, writeBatch, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { calcular, puntosBajoMinimo, pct } from "./js/calculo.js";
+import { calcular, preCalificacion, puntosBajoMinimo, pct } from "./js/calculo.js";
 import { HISTORIAL, METAS_2026 } from "./js/historial.js";
 import { AUDITORIAS_OCTUBRE } from "./js/octubre.js";
 import { VERSION_CATALOGO } from "./js/catalogo.js";
@@ -223,7 +223,10 @@ async function iniciar() {
     opciones.push(`<option value="${m}">${nombreMes(m)}</option>`);
   }
   $("selMes").innerHTML = opciones.join("");
-  $("selMes").addEventListener("change", cargarAuditorias);
+  // Al regresar de editar una auditoría, se conserva el mes que estabas viendo
+  const mesGuardado = sessionStorage.getItem("lean_admin_mes");
+  if (mesGuardado && [...$("selMes").options].some((o) => o.value === mesGuardado)) $("selMes").value = mesGuardado;
+  $("selMes").addEventListener("change", () => { sessionStorage.setItem("lean_admin_mes", $("selMes").value); cargarAuditorias(); });
 
   await cargarEquipos();
   await cargarAuditorias();
@@ -280,7 +283,7 @@ function pintarAuditorias() {
   $("tbAuditorias").innerHTML = lista.map((e) => {
     const a = auditorias[e.id];
     const estado = a?.estado || "sin";
-    const chip = `<span class="estado-chip ${estado}">${a ? ETIQUETA[estado] : "Sin auditar"}</span>`;
+    const chip = `<span class="estado-chip ${estado}">${a ? ETIQUETA[estado] : "Sin auditar"}</span>${a?.ajustes?.length ? `<div class="muted" style="margin-top:4px" title="${esc(a.ajustes.map((x) => `${x.fecha}: ${x.motivo}`).join("\n"))}">Ajustada (${a.ajustes.length})</div>` : ""}`;
     const cab = `<td><div class="eq">${esc(e.nombre)}</div><div class="dep">${esc(e.departamento)}${e.lider ? ` · Líder: ${esc(e.lider)}` : ""}${a ? ` · Auditor: ${esc(a.auditor)}` : ""}${e.estado === "pausa" ? " · en pausa" : ""}</div></td>
                  <td data-l="Estatus">${chip}</td>`;
 
@@ -299,6 +302,7 @@ function pintarAuditorias() {
     let acciones = "";
     if (estado === "borrador") acciones = '<span class="muted">El auditor no ha terminado</span>';
     if (editable) acciones = `<button class="btn sec" data-guardar="${e.id}">Guardar</button><button class="btn" data-cerrar="${e.id}">Cerrar</button>`;
+    if (estado !== "borrador") acciones += `<button class="btn sec" data-editar="${a.mes}_${e.id}" title="Editar respuestas y comentarios">Editar</button>`;
 
     return `<tr id="fila-${e.id}">${cab}${celdas}
       <td class="num" data-l="Calificación" id="cal-${e.id}"></td>
@@ -342,7 +346,9 @@ function vistaPrevia(id) {
   const a = auditorias[id];
   const { res } = a.estado === "pendiente" ? leerFila(id) : { res: a.resultados };
   const calc = calcular(a.respuestas, res);
-  $("cal-" + id).innerHTML = calc.calificacion === null ? '<span class="muted">—</span>' : `<b>${pct(calc.calificacion)}</b>`;
+  $("cal-" + id).innerHTML = calc.calificacion === null
+    ? `<span class="muted" title="Pre-calificación con los datos disponibles">≈ ${pct(preCalificacion(a.respuestas, res).calificacion)}</span>`
+    : `<b>${pct(calc.calificacion)}</b>`;
   $("cert-" + id).innerHTML = calc.certificado === null ? '<span class="muted">—</span>'
     : calc.certificado ? '<span class="cert-si">Certificado</span>'
     : `<span class="cert-no">No certificado</span><div class="muted">Punto ${puntosBajoMinimo(calc.puntos).join(", ")}</div>`;
@@ -351,6 +357,11 @@ function vistaPrevia(id) {
 $("tbAuditorias").addEventListener("input", (e) => { if (e.target.dataset.eq) vistaPrevia(e.target.dataset.eq); });
 
 $("tbAuditorias").addEventListener("click", async (e) => {
+  if (e.target.dataset.editar) {
+    sessionStorage.setItem("lean_admin_mes", $("selMes").value);
+    location.href = `index.html?editar=${encodeURIComponent(e.target.dataset.editar)}`;
+    return;
+  }
   const id = e.target.dataset.guardar || e.target.dataset.cerrar;
   if (!id) return;
   const cerrar = !!e.target.dataset.cerrar;
