@@ -350,6 +350,7 @@ async function cargar() {
 
   prepararGeneral();
   prepararEvaluacion();
+  abrirDesdeEnlace();
   prepararResumen();
   pintarNota();
   $("pieGen").textContent = `Generado: ${GENERADO} · Mejora Continua · Zubex Industrial`;
@@ -516,6 +517,20 @@ function llenarEquiposEv() {
   const dep = $("selDepEv").value;
   const lista = activos().filter((e) => !dep || e.departamento === dep).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   $("selEqEv").innerHTML = '<option value="">Selecciona tu equipo</option>' + lista.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join("");
+}
+
+// Enlace directo desde el correo: resultados.html?equipo=audi&mes=2026-11#evaluacion
+function abrirDesdeEnlace() {
+  const q = new URLSearchParams(location.search);
+  const id = q.get("equipo");
+  if (!id || !equipos[id] || equipos[id].estado !== "activo") return;
+  $("selDepEv").value = equipos[id].departamento;
+  llenarEquiposEv();
+  $("selEqEv").value = id;
+  llenarMesesEv();
+  const mes = q.get("mes");
+  if (mes && [...$("selMesEv").options].some((o) => o.value === mes)) $("selMesEv").value = mes;
+  if (!location.hash) location.hash = "evaluacion";
 }
 
 // Solo meses con auditoría terminada (pendiente o cerrada); las que están en captura no se muestran
