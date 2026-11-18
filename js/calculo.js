@@ -53,16 +53,21 @@ export function calcular(respuestas = {}, resultados = {}) {
   return { puntos, bloques, calificacion, certificado };
 }
 
-// Pre-calificación: aproximado con los datos disponibles antes de cerrar.
-// El bloque Resultados promedia solo los puntos que ya tienen dato (16 y los de 17–19 capturados).
-// Los criterios sin contestar cuentan como 0.
+// Pre-calificación: aproximado antes de cerrar, con un criterio conservador.
+// Los valores en % que aún no se capturan (normalmente el 17) cuentan como 0, igual que los criterios sin contestar.
+// Así, al capturar el dato que falta la calificación solo puede subir hasta la real.
 export function preCalificacion(respuestas = {}, resultados = {}) {
+  const conCeros = { ...resultados };
+  PUNTOS.filter(p => p.valor).forEach(p => {
+    const v = conCeros[p.valor];
+    if (v === null || v === undefined || v === "") conCeros[p.valor] = 0;
+  });
   const puntos = {};
-  PUNTOS.forEach(p => { puntos[p.n] = calificarPunto(p, respuestas, resultados); });
+  PUNTOS.forEach(p => { puntos[p.n] = calificarPunto(p, respuestas, conCeros); });
   const bloques = {};
-  BLOQUES.forEach(b => { bloques[b.id] = promedio(b.puntos.map(n => puntos[n]).filter(v => v !== null)); });
-  const faltan = PUNTOS.filter(p => p.valor && puntos[p.n] === null).map(p => p.n);
-  return { puntos, bloques, calificacion: promedio(Object.values(bloques).filter(v => v !== null)), faltan };
+  BLOQUES.forEach(b => { bloques[b.id] = promedio(b.puntos.map(n => puntos[n])); });
+  const faltan = PUNTOS.filter(p => p.valor && calificarPunto(p, respuestas, resultados) === null).map(p => p.n);
+  return { puntos, bloques, calificacion: promedio(Object.values(bloques)), faltan };
 }
 
 // Puntos que no alcanzan su mínimo de certificación (sirve para explicar un "No certificado")
