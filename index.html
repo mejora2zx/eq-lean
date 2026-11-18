@@ -82,7 +82,7 @@
       <div class="mapa-equipo">
         <strong id="txtEquipo"></strong>
         <span id="txtEquipoInfo"></span>
-        <span class="precal" id="txtPreCal" title="Aproximado con lo capturado; el punto 17 se agrega al cerrar"></span>
+        <span class="precal" id="txtPreCal" title="Aproximado con lo capturado; lo que falta cuenta como 0, así que al completarlo solo puede subir"></span>
       </div>
       <div id="bannerEdicion"></div>
       <div class="celdas" id="celdas"></div>
@@ -370,7 +370,7 @@ function refrescar() {
     $("cal-" + p.n).textContent = v === null ? "" : pct(v);
   });
   const pre = preCalificacion(auditoria.respuestas, auditoria.resultados);
-  $("txtPreCal").innerHTML = `Pre-calificación ≈ ${pct(pre.calificacion)}${pre.faltan.length ? ` <small>sin punto ${pre.faltan.join(", ")}</small>` : ""}`;
+  $("txtPreCal").innerHTML = `Pre-calificación ≈ ${pct(pre.calificacion)}${pre.faltan.length ? ` <small>punto ${pre.faltan.join(", ")} en 0</small>` : ""}`;
 
   const falta = faltantes(auditoria.respuestas).length;
   const hechos = TOTAL_YN - falta;
@@ -470,7 +470,7 @@ function mostrarResumen() {
       ? `<p><strong>Calificación final: ${pct(calc.calificacion)}</strong> · ${calc.certificado ? "Certificado" : `No certificado (no alcanza el mínimo en el punto ${puntosBajoMinimo(calc.puntos).join(", ")})`}</p>`
       : (() => {
           const pre = preCalificacion(auditoria.respuestas, auditoria.resultados);
-          return `<p><strong>Pre-calificación ≈ ${pct(pre.calificacion)}</strong>${pre.faltan.length ? ` (sin punto ${pre.faltan.join(", ")})` : ""}</p>
+          return `<p><strong>Pre-calificación ≈ ${pct(pre.calificacion)}</strong>${pre.faltan.length ? ` (punto ${pre.faltan.join(", ")} en 0; al capturarlo sube)` : ""}</p>
             <p class="aviso">${pre.faltan.includes(17) ? "Falta el desempeño contra metas (punto 17). " : ""}La calificación final y la certificación se calculan al cerrar la auditoría en Administración.</p>`;
         })()}
 
