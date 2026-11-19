@@ -202,7 +202,7 @@ $("selEquipo").addEventListener("change", async () => {
     html = `<p class="aviso">Este equipo ya tiene una auditoría de ${nombreMes(MES_ACTUAL)} (${existente.estado === "pendiente" ? "terminada, pendiente de resultados" : "en captura"}), guardada por ${esc(existente.auditor)}. Al comenzar la continúas.</p>`;
   } else if (anterior) {
     html = `<label class="check"><input type="checkbox" id="chkPrecargar">
-      <span>Precargar respuestas y comentarios de ${nombreMes(anterior.mes)}. Revisa cada criterio antes de terminar.</span></label>`;
+      <span>Precargar respuestas, comentarios, ahorros y examen de ${nombreMes(anterior.mes)}. Revisa cada criterio antes de terminar.</span></label>`;
   }
   $("infoEquipo").innerHTML = html;
   validarInicio();
@@ -232,7 +232,19 @@ $("btnComenzar").addEventListener("click", () => {
       version: VERSION_CATALOGO,
       estado: "borrador",
       respuestas: precargar ? structuredClone(anterior.respuestas || {}) : {},
-      resultados: { desempeno: null, ahorro: null, examen: null },
+      // Con precarga, ahorros (18) y examen (19) arrancan con el valor del mes anterior; el desempeño (17) no,
+      // para que la pre-calificación arranque baja y suba al capturarlo. Se guarda como referencia para Administración.
+      resultados: {
+        desempeno: null,
+        ahorro: precargar ? (anterior.resultados?.ahorro ?? null) : null,
+        examen: precargar ? (anterior.resultados?.examen ?? null) : null
+      },
+      referenciaAnterior: anterior ? {
+        mes: anterior.mes,
+        desempeno: anterior.resultados?.desempeno ?? null,
+        ahorro: anterior.resultados?.ahorro ?? null,
+        examen: anterior.resultados?.examen ?? null
+      } : null,
       precargadoDe: precargar ? anterior.mes : null
     };
   }
@@ -268,6 +280,14 @@ function abrirFormulario() {
   window.scrollTo({ top: 0 });
 }
 
+// Valor del mes anterior como referencia (debajo de los puntos 17, 18 y 19)
+function referencia(valor) {
+  const r = auditoria.referenciaAnterior;
+  const v = r?.[valor];
+  if (!r || v === null || v === undefined) return "";
+  return `<p style="margin:8px 0 0;font-size:.85rem;color:var(--gris)">Mes anterior (${nombreMes(r.mes)}): <b>${pct(v)}</b></p>`;
+}
+
 function htmlPunto(p) {
   const min = CERTIFICACION[p.n] ? `<span class="punto-min">Mínimo para certificar: ${CERTIFICACION[p.n][0] === ">" ? "más de " : ""}${CERTIFICACION[p.n][1] * 100} %</span>` : "";
   if (p.valor && valorEditable(p.valor)) {
@@ -278,6 +298,7 @@ function htmlPunto(p) {
         <div class="valor-cap"><p>${esc(p.descripcion)}</p>
           <label>Resultado <input type="number" inputmode="decimal" min="0" max="100" step="0.01" class="inp-valor" data-valor="${p.valor}"
             value="${v === null || v === undefined ? "" : +(v * 100).toFixed(2)}" aria-label="${esc(p.titulo)} en %"> %</label>
+          ${referencia(p.valor)}
         </div>
       </article>`;
   }
@@ -288,6 +309,7 @@ function htmlPunto(p) {
         <div class="punto-cab"><span class="punto-num">${p.n}</span><h3>${esc(p.titulo)}<br>${min}</h3></div>
         <div class="valor-pendiente"><p>${esc(p.descripcion)}</p>
           ${v === null || v === undefined ? "Pendiente: se captura en Administración antes de cerrar la auditoría." : `Capturado: ${pct(v)}`}
+          ${referencia(p.valor)}
         </div>
       </article>`;
   }
