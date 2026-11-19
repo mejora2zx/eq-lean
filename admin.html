@@ -360,7 +360,8 @@ function pintarAuditorias() {
       if (!editable) return `<td class="num" data-l="${etq}">${pct(v ?? null)}</td>`;
       return `<td class="num" data-l="${etq}"><span class="inp-pct">
         <input type="number" inputmode="decimal" min="0" max="100" step="0.01" data-eq="${e.id}" data-c="${c}"
-          value="${v === null || v === undefined ? "" : +(v * 100).toFixed(2)}" aria-label="${etq} de ${esc(e.nombre)}">%</span></td>`;
+          value="${v === null || v === undefined ? "" : +(v * 100).toFixed(2)}" aria-label="${etq} de ${esc(e.nombre)}"
+          ${ref(a, c)}>%</span></td>`;
     }).join("");
 
     let acciones = "";
@@ -390,6 +391,13 @@ function pintarAuditorias() {
       <div style="margin-top:10px"><button class="btn" id="btnImportarOct">Importar auditorías de octubre</button></div>`;
     $("btnImportarOct").onclick = importarOctubre;
   } else p.hidden = true;
+}
+
+// Valor del mes anterior como sugerencia gris dentro del campo vacío (si la auditoría lo trae)
+function ref(a, c) {
+  const v = a.referenciaAnterior?.[c];
+  if (v === null || v === undefined) return "";
+  return `placeholder="${Math.round(v * 100)}" title="Mes anterior: ${Math.round(v * 100)} %"`;
 }
 
 // Lee los 3 valores de la fila (en fracción 0–1). Devuelve null en los vacíos y marca los inválidos.
