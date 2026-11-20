@@ -428,13 +428,14 @@ function pintarGeneral() {
   const deptosEq = {};
   activos().forEach((e) => { (deptosEq[e.departamento] ||= []).push(e.id); });
   const filasDep = Object.entries(deptosEq).map(([d, ids]) => {
-    const cals = act.filter((a) => ids.includes(a.equipoId)).map((a) => a.calificacion);
+    // Se promedian las calificaciones ya redondeadas de cada equipo (las que ven los equipos)
+    const cals = act.filter((a) => ids.includes(a.equipoId)).map((a) => entero(a.calificacion) / 100);
     return { d, n: ids.length, ev: cals.length, prom: promedio(cals), meta: metaDe(d, mes) };
   }).sort((a, b) => b.n - a.n || a.d.localeCompare(b.d, "es"));
   $("tbDeptos").innerHTML = filasDep.map((f) => {
     const clase = f.prom === null || f.meta === null ? "" : alcanza(f.prom, f.meta) ? "ok" : "bajo";
     return `<tr><td>${esc(f.d)}</td><td class="n">${f.n}</td><td class="n">${f.ev}</td>
-      <td class="n ${clase}" ${f.meta !== null ? `title="Meta: ${pct(f.meta)}"` : ""}>${pct(f.prom, 1)}</td></tr>`;
+      <td class="n ${clase}" ${f.meta !== null ? `title="Meta: ${pct(f.meta)}"` : ""}>${pct(f.prom, f.ev === 1 ? 0 : 1)}</td></tr>`;
   }).join("");
 
   $("tbRanking").innerHTML = orden.length ? orden.map((a, i) => {
